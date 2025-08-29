@@ -1,6 +1,3 @@
-//
-// Created by chlad on 8/29/2025.
-//
 // main.cpp - Gamba Game Server Entry Point
 // KIV/UPS Network Programming Project
 

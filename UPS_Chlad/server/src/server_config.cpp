@@ -1,6 +1,3 @@
-//
-// Created by chlad on 8/29/2025.
-//
 // server_config.cpp - Server Configuration Management Implementation
 // KIV/UPS Network Programming Project
 
