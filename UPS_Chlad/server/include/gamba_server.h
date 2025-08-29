@@ -71,6 +71,11 @@ private:
     std::string generateRoomId();
     bool sendMessage(int client_socket, const ProtocolMessage& message);
 
+	// Heartbeat check
+	std::map<std::string, std::chrono::steady_clock::time_point> player_last_ping;
+	std::mutex heartbeat_mutex;
+	std::thread heartbeat_thread;
+
     // Protocol handlers
     ProtocolMessage handleConnect(const ProtocolMessage& msg, int client_socket);
     ProtocolMessage handleJoinRoom(const ProtocolMessage& msg, int client_socket);
@@ -83,6 +88,10 @@ private:
     ProtocolMessage processMessage(const std::string& raw_message, int client_socket);
     void handleClient(int client_socket, std::string client_ip, int client_port);
     bool handleInvalidMessage(int client_socket, const std::string& reason);
+	void startHeartbeatMonitor();
+	void checkHeartbeats();
+	void pauseGameInRoom(const std::string& room_id, const std::string& disconnected_player);
+	void resumeGameInRoom(const std::string& room_id, const std::string& reconnected_player);
 
 public:
     GambaServer(const ServerConfig& cfg);

@@ -17,8 +17,12 @@ Room::Room(const std::string& room_id) : id(room_id), active(true) {}
 // GambaServer implementation
 GambaServer::GambaServer(const ServerConfig& cfg) : config(cfg), server_socket(-1) {}
 
+// Destructor
 GambaServer::~GambaServer() {
     stop();
+    if (heartbeat_thread.joinable()) {
+        heartbeat_thread.join();
+    }
 }
 
 void GambaServer::log(const std::string& message) {
@@ -64,6 +68,10 @@ ProtocolMessage GambaServer::handleConnect(const ProtocolMessage& msg, int clien
         players.emplace(player_id, Player(player_id, player_name));
         socket_to_player[client_socket] = player_id;
     }
+    {
+        std::lock_guard<std::mutex> hb_lock(heartbeat_mutex);
+        player_last_ping[player_id] = std::chrono::steady_clock::now();
+    }
 
     log("Player connected: " + player_name + " (" + player_id + ")");
     return ProtocolHelper::createConnectedResponse(player_id, player_name);
@@ -104,7 +112,12 @@ ProtocolMessage GambaServer::handleJoinRoom(const ProtocolMessage& msg, int clie
     return ProtocolHelper::createRoomJoinedResponse(player_id, room_id);
 }
 
-ProtocolMessage GambaServer::handlePing(const ProtocolMessage& /* msg */) {
+ProtocolMessage GambaServer::handlePing(const ProtocolMessage& msg) {
+    std::string player_id = msg.player_id;
+    if (!player_id.empty()) {
+        std::lock_guard<std::mutex> lock(heartbeat_mutex);
+        player_last_ping[player_id] = std::chrono::steady_clock::now();
+    }
     return ProtocolHelper::createPongResponse();
 }
 
@@ -314,7 +327,9 @@ bool GambaServer::start() {
         return false;
     }
     log("Socket created successfully");
-
+    log("Starting heartbeat monitor...");
+    startHeartbeatMonitor();
+    log("Heartbeat monitor started");
     // Allow socket reuse
     int opt = 1;
     setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -386,4 +401,53 @@ void GambaServer::stop() {
         }
         log("Server stopped");
     }
+}
+
+// Add these methods to gamba_server.cpp:
+
+void GambaServer::startHeartbeatMonitor() {
+    heartbeat_thread = std::thread([this]() {
+        while (running) {
+            std::this_thread::sleep_for(std::chrono::seconds(10));
+            checkHeartbeats();
+        }
+    });
+}
+
+void GambaServer::checkHeartbeats() {
+    log("Checking heartbeats...");
+    std::lock_guard<std::mutex> hb_lock(heartbeat_mutex);
+    std::lock_guard<std::mutex> players_lock(players_mutex);
+
+    auto now = std::chrono::steady_clock::now();
+
+    for (auto& pair : players) {
+        Player& player = pair.second;
+        if (player.connected) {
+            auto ping_it = player_last_ping.find(player.id);
+            if (ping_it != player_last_ping.end()) {
+                auto time_since_ping = now - ping_it->second;
+
+                if (time_since_ping > std::chrono::seconds(30)) {
+                    log("Player " + player.id + " timeout - marking as disconnected");
+                    pauseGameInRoom(player.room_id, player.id);
+                    player.connected = false;
+                }
+            }
+        }
+    }
+}
+
+void GambaServer::pauseGameInRoom(const std::string& room_id, const std::string& disconnected_player) {
+    if (room_id.empty()) return;
+
+    // Implementation for pausing game - we'll add this next
+    log("Game paused in room " + room_id + " - player " + disconnected_player + " disconnected");
+}
+
+void GambaServer::resumeGameInRoom(const std::string& room_id, const std::string& reconnected_player) {
+    if (room_id.empty()) return;
+
+    // Implementation for resuming game - we'll add this next
+    log("Game resumed in room " + room_id + " - player " + reconnected_player + " reconnected");
 }

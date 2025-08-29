@@ -12,21 +12,26 @@
 // Message types for client-server communication
 enum class MessageType {
     // Client -> Server
-    CONNECT = 0,
-    DISCONNECT = 1,
-    JOIN_ROOM = 2,
-    LEAVE_ROOM = 3,
-    PING = 4,
-	START_GAME = 5,
+    CONNECT = 0,	// Client requesting connection
+    DISCONNECT = 1,	// Client requesting disconnection
+    JOIN_ROOM = 2,	// Client requesting room joining
+    LEAVE_ROOM = 3,	// Clint requesting room leaving
+    PING = 4,		// Client pinging server
+	START_GAME = 5,	// Client requesting game start
+	RECONNECT = 6,
 
     // Server -> Client
-    CONNECTED = 100,
-    ROOM_JOINED = 101,
-    ROOM_LEFT = 102,
-    ERROR_MSG = 103,
-    PONG = 104,
-	GAME_STARTED = 105,
-	GAME_STATE = 106
+    CONNECTED = 100, 			// Server notifies about connection
+    ROOM_JOINED = 101,			// Sever notifies about Player joining room
+    ROOM_LEFT = 102,			// Server notifies about Player leaving room
+    ERROR_MSG = 103,			// Server notifies error message was sent
+    PONG = 104,					// Server replies pong to client
+	GAME_STARTED = 105,			// Server notifies game start
+	GAME_STATE = 106,			// Server notifies game state
+	PLAYER_DISCONNECTED = 107,
+	GAME_PAUSED = 108,
+	PLAYER_RECONNECTED = 109,
+	GAME_RESUMED = 110
 };
 
 // Simple protocol message structure
@@ -187,6 +192,11 @@ public:
 			case MessageType::START_GAME: return "START_GAME";
 			case MessageType::GAME_STARTED: return "GAME_STARTED";
 			case MessageType::GAME_STATE: return "GAME_STATE";
+			case MessageType::RECONNECT: return "RECONNECT";
+			case MessageType::PLAYER_DISCONNECTED: return "PLAYER_DISCONNECTED";
+			case MessageType::GAME_PAUSED: return "GAME_PAUSED";
+			case MessageType::PLAYER_RECONNECTED: return "PLAYER_RECONNECTED";
+			case MessageType::GAME_RESUMED: return "GAME_RESUMED";
             default: return "UNKNOWN";
         }
     }
