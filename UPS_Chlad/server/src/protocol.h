@@ -17,13 +17,16 @@ enum class MessageType {
     JOIN_ROOM = 2,
     LEAVE_ROOM = 3,
     PING = 4,
+	START_GAME = 5,
 
     // Server -> Client
     CONNECTED = 100,
     ROOM_JOINED = 101,
     ROOM_LEFT = 102,
     ERROR_MSG = 103,
-    PONG = 104
+    PONG = 104,
+	GAME_STARTED = 105,
+	GAME_STATE = 106
 };
 
 // Simple protocol message structure
@@ -181,6 +184,9 @@ public:
             case MessageType::ROOM_LEFT: return "ROOM_LEFT";
             case MessageType::ERROR_MSG: return "ERROR";
             case MessageType::PONG: return "PONG";
+			case MessageType::START_GAME: return "START_GAME";
+			case MessageType::GAME_STARTED: return "GAME_STARTED";
+			case MessageType::GAME_STATE: return "GAME_STATE";
             default: return "UNKNOWN";
         }
     }

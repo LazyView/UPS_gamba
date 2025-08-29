@@ -16,6 +16,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <fstream>
+#include <algorithm>
+#include <random>
 #include "protocol.h"
 
 // Server configuration structure
@@ -139,6 +141,147 @@ struct ServerConfig {
     }
 };
 
+// Card representation
+struct Card {
+    enum Suit { HEARTS, DIAMONDS, CLUBS, SPADES };
+    enum Value { ACE = 1, TWO = 2, THREE = 3, FOUR = 4, FIVE = 5, SIX = 6,
+                SEVEN = 7, EIGHT = 8, NINE = 9, TEN = 10, JACK = 11, QUEEN = 12, KING = 13 };
+
+    Suit suit;
+    Value value;
+
+    Card(Suit s, Value v) : suit(s), value(v) {}
+
+    std::string toString() const {
+        std::string result = std::to_string(static_cast<int>(value));
+        switch(suit) {
+            case HEARTS: result += "H"; break;
+            case DIAMONDS: result += "D"; break;
+            case CLUBS: result += "C"; break;
+            case SPADES: result += "S"; break;
+        }
+        return result;
+    }
+
+    bool isSpecial() const {
+        return value == TWO || value == SEVEN || value == TEN;
+    }
+};
+
+// Player game state
+struct PlayerGameState {
+    std::vector<Card> hand;
+    std::vector<Card> reserve_cards;
+    bool is_turn = false;
+
+    bool hasWon() const {
+        return hand.empty() && reserve_cards.empty();
+    }
+
+    std::string getHandString() const {
+        std::string result = "[";
+        for (size_t i = 0; i < hand.size(); i++) {
+            if (i > 0) result += ",";
+            result += hand[i].toString();
+        }
+        result += "]";
+        return result;
+    }
+};
+
+// Game state
+enum class GamePhase { WAITING, DEALING, PLAYING, FINISHED };
+
+struct GambaGameState {
+    GamePhase phase = GamePhase::WAITING;
+    std::vector<std::string> player_order;
+    int current_player_index = 0;
+    std::vector<Card> deck;
+    std::vector<Card> discard_pile;
+    std::map<std::string, PlayerGameState> player_states;
+
+    std::string getCurrentPlayer() {
+        if (player_order.empty()) return "";
+        return player_order[current_player_index];
+    }
+
+    void nextPlayer() {
+        if (!player_order.empty()) {
+            // Clear current player's turn flag
+            if (player_states.find(getCurrentPlayer()) != player_states.end()) {
+                player_states[getCurrentPlayer()].is_turn = false;
+            }
+
+            current_player_index = (current_player_index + 1) % player_order.size();
+
+            // Set new current player's turn flag
+            if (player_states.find(getCurrentPlayer()) != player_states.end()) {
+                player_states[getCurrentPlayer()].is_turn = true;
+            }
+        }
+    }
+
+    void initializeDeck() {
+        deck.clear();
+        for (int suit = 0; suit < 4; suit++) {
+            for (int value = 1; value <= 13; value++) {
+                deck.emplace_back(static_cast<Card::Suit>(suit), static_cast<Card::Value>(value));
+            }
+        }
+        shuffleDeck();
+    }
+
+    void shuffleDeck() {
+    	std::random_device rd;
+    	std::mt19937 g(rd());
+    	std::shuffle(deck.begin(), deck.end(), g);
+	}
+
+    void dealCards() {
+        if (player_order.size() < 2) return;
+
+        initializeDeck();
+
+        // Deal reserve cards (3 per player)
+        for (const auto& player_id : player_order) {
+            PlayerGameState& ps = player_states[player_id];
+            ps.reserve_cards.clear();
+            for (int i = 0; i < 3 && !deck.empty(); i++) {
+                ps.reserve_cards.push_back(deck.back());
+                deck.pop_back();
+            }
+        }
+
+        // Deal hand cards (3 per player)
+        for (const auto& player_id : player_order) {
+            PlayerGameState& ps = player_states[player_id];
+            ps.hand.clear();
+            for (int i = 0; i < 3 && !deck.empty(); i++) {
+                ps.hand.push_back(deck.back());
+                deck.pop_back();
+            }
+        }
+
+        // Start discard pile
+        if (!deck.empty()) {
+            discard_pile.push_back(deck.back());
+            deck.pop_back();
+        }
+
+        // Set first player's turn
+        if (!player_order.empty()) {
+            player_states[player_order[0]].is_turn = true;
+        }
+    }
+
+    Card getTopCard() const {
+        if (!discard_pile.empty()) {
+            return discard_pile.back();
+        }
+        return Card(Card::HEARTS, Card::ACE); // Default fallback
+    }
+};
+
 // Simple player representation
 struct Player {
     std::string id;
@@ -157,13 +300,11 @@ struct Player {
 // Simple room representation
 struct Room {
     std::string id;
-    std::vector<std::string> players;  // Player IDs
+    std::vector<std::string> players;
     bool active;
+    GambaGameState game_state;
 
-    // Default constructor (required by std::map)
     Room() : id(""), active(false) {}
-
-    // Parameterized constructor
     Room(const std::string& room_id) : id(room_id), active(true) {}
 };
 
@@ -280,6 +421,57 @@ private:
         return ProtocolHelper::createPongResponse();
     }
 
+	ProtocolMessage handleStartGame(const ProtocolMessage& /* msg */, int client_socket) {
+    	std::string player_id = getPlayerIdFromSocket(client_socket);
+    	if (player_id.empty()) {
+        	return ProtocolHelper::createErrorResponse("Not connected");
+    	}
+
+    	std::lock_guard<std::mutex> rooms_lock(rooms_mutex);
+    	std::lock_guard<std::mutex> players_lock(players_mutex);
+
+    	std::string room_id = players[player_id].room_id;
+    	if (room_id.empty()) {
+        	return ProtocolHelper::createErrorResponse("Not in a room");
+    	}
+
+    	auto& room = rooms[room_id];
+    	auto& game_state = room.game_state;
+
+		// ADD DEBUG HERE:
+    	log("DEBUG - Room " + room_id + " has " + std::to_string(room.players.size()) + " players");
+    	log("DEBUG - Game phase: " + std::to_string(static_cast<int>(game_state.phase)));
+
+    	if (game_state.phase != GamePhase::WAITING || room.players.size() < 2) {
+    		return ProtocolHelper::createErrorResponse("Cannot start game (need 2+ players, phase must be WAITING)");
+		}
+
+    	// Initialize game
+    	game_state.phase = GamePhase::DEALING;
+    	game_state.player_order = room.players;
+    	game_state.current_player_index = 0;
+
+    	// Initialize player states
+    	for (const auto& pid : room.players) {
+        	game_state.player_states[pid] = PlayerGameState();
+    	}
+
+    	// Deal cards
+    	game_state.dealCards();
+    	game_state.phase = GamePhase::PLAYING;
+
+    	log("Game started in room " + room_id + " with " +
+        	std::to_string(room.players.size()) + " players");
+
+    	ProtocolMessage response(MessageType::GAME_STARTED);
+    	response.room_id = room_id;
+    	response.setData("players", std::to_string(room.players.size()));
+    	response.setData("current_player", game_state.getCurrentPlayer());
+    	response.setData("top_card", game_state.getTopCard().toString());
+
+    	return response;
+	}
+
     // Get player ID from socket
     std::string getPlayerIdFromSocket(int client_socket) {
         std::lock_guard<std::mutex> lock(players_mutex);
@@ -343,6 +535,9 @@ private:
 
             case MessageType::PING:
                 return handlePing(msg);
+
+			case MessageType::START_GAME:
+    			return handleStartGame(msg, client_socket);
 
             default:
                 log("⚠️  Unhandled message type: " + ProtocolHelper::getMessageTypeName(msg.type));
@@ -512,6 +707,8 @@ public:
             log("🛑 Server stopped");
         }
     }
+
+
 };
 
 int main(int argc, char* argv[]) {
