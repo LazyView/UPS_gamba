@@ -364,6 +364,9 @@ bool GambaServer::start() {
     return true;
 }
 
+/*
+This method takes care server running a
+*/
 void GambaServer::run() {
     while (running) {
         struct sockaddr_in client_addr;
@@ -392,6 +395,9 @@ void GambaServer::run() {
     }
 }
 
+/*
+This will stop server!
+*/
 void GambaServer::stop() {
     if (running) {
         running = false;
@@ -403,8 +409,9 @@ void GambaServer::stop() {
     }
 }
 
-// Add these methods to gamba_server.cpp:
-
+/*
+Loop for heartbeat check
+*/
 void GambaServer::startHeartbeatMonitor() {
     heartbeat_thread = std::thread([this]() {
         while (running) {
@@ -413,7 +420,10 @@ void GambaServer::startHeartbeatMonitor() {
         }
     });
 }
-
+/*
+Function that checks if client is alive, send ping every 30s and should receive pong, if not
+game will pause until player reconnects
+*/
 void GambaServer::checkHeartbeats() {
     log("Checking heartbeats...");
     std::lock_guard<std::mutex> hb_lock(heartbeat_mutex);
