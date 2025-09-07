@@ -53,6 +53,38 @@ bool GambaServer::sendMessage(int client_socket, const ProtocolMessage& message)
 
 ProtocolMessage GambaServer::handleConnect(const ProtocolMessage& msg, int client_socket) {
     std::string player_name = msg.getData("name", "Anonymous");
+
+    // Check if this is a returning temporarily disconnected player
+    {
+        std::lock_guard<std::mutex> lock(players_mutex);
+        for (auto& pair : players) {
+            Player& existing_player = pair.second;
+            if (existing_player.name == player_name &&
+                existing_player.temporarily_disconnected &&
+                !existing_player.connected) {
+
+                // Automatic reconnection for temporary disconnection
+                existing_player.connected = true;
+                existing_player.temporarily_disconnected = false;
+                socket_to_player[client_socket] = existing_player.id;
+
+                {
+                    std::lock_guard<std::mutex> hb_lock(heartbeat_mutex);
+                    player_last_ping[existing_player.id] = std::chrono::steady_clock::now();
+                }
+
+                log("Player automatically reconnected (short-term): " + player_name + " (" + existing_player.id + ")");
+
+                // Try to resume game
+                if (!existing_player.room_id.empty()) {
+                    resumeGameInRoom(existing_player.room_id, existing_player.id);
+                }
+
+                return ProtocolHelper::createConnectedResponse(existing_player.id, player_name);
+            }
+        }
+    }
+
     std::string player_id = generatePlayerId();
 
     // DEBUG: Log what we received
@@ -75,6 +107,55 @@ ProtocolMessage GambaServer::handleConnect(const ProtocolMessage& msg, int clien
 
     log("Player connected: " + player_name + " (" + player_id + ")");
     return ProtocolHelper::createConnectedResponse(player_id, player_name);
+}
+
+ProtocolMessage GambaServer::handleReconnect(const ProtocolMessage& msg, int client_socket) {
+    std::string player_id = msg.player_id;
+    std::string room_id = msg.room_id;
+
+    if (player_id.empty()) {
+        return ProtocolHelper::createErrorResponse("Player ID required for reconnection");
+    }
+
+    {
+        std::lock_guard<std::mutex> players_lock(players_mutex);
+
+        auto player_it = players.find(player_id);
+        if (player_it == players.end()) {
+            return ProtocolHelper::createErrorResponse("Player not found");
+        }
+
+        Player& player = player_it->second;
+        if (player.connected) {
+            return ProtocolHelper::createErrorResponse("Player already connected");
+        }
+
+        if (player.temporarily_disconnected) {
+            return ProtocolHelper::createErrorResponse("Use normal connection for temporary disconnections");
+        }
+
+        // Long-term reconnection
+        player.connected = true;
+        socket_to_player[client_socket] = player_id;
+    }
+
+    {
+        std::lock_guard<std::mutex> hb_lock(heartbeat_mutex);
+        player_last_ping[player_id] = std::chrono::steady_clock::now();
+    }
+
+    log("Player manually reconnected (long-term): " + players[player_id].name + " (" + player_id + ")");
+
+    if (!room_id.empty()) {
+        resumeGameInRoom(room_id, player_id);
+    }
+
+    ProtocolMessage response(MessageType::PLAYER_RECONNECTED);
+    response.player_id = player_id;
+    response.room_id = room_id;
+    response.setData("status", "reconnected");
+
+    return response;
 }
 
 ProtocolMessage GambaServer::handleJoinRoom(const ProtocolMessage& msg, int client_socket) {
@@ -249,6 +330,9 @@ ProtocolMessage GambaServer::processMessage(const std::string& raw_message, int 
     switch (msg.type) {
         case MessageType::CONNECT:
             return handleConnect(msg, client_socket);
+
+        case MessageType::RECONNECT:
+            return handleReconnect(msg, client_socket);
 
         case MessageType::JOIN_ROOM:
             return handleJoinRoom(msg, client_socket);
@@ -425,24 +509,42 @@ Function that checks if client is alive, send ping every 30s and should receive 
 game will pause until player reconnects
 */
 void GambaServer::checkHeartbeats() {
-    log("Checking heartbeats...");
     std::lock_guard<std::mutex> hb_lock(heartbeat_mutex);
     std::lock_guard<std::mutex> players_lock(players_mutex);
 
     auto now = std::chrono::steady_clock::now();
+    log("Checking heartbeats for " + std::to_string(players.size()) + " players");
 
     for (auto& pair : players) {
         Player& player = pair.second;
+        log("Player " + player.id + " connected: " + (player.connected ? "YES" : "NO"));
+
         if (player.connected) {
             auto ping_it = player_last_ping.find(player.id);
             if (ping_it != player_last_ping.end()) {
                 auto time_since_ping = now - ping_it->second;
+                auto seconds = std::chrono::duration_cast<std::chrono::seconds>(time_since_ping).count();
+                log("Player " + player.id + " last ping: " + std::to_string(seconds) + " seconds ago");
 
                 if (time_since_ping > std::chrono::seconds(30)) {
-                    log("Player " + player.id + " timeout - marking as disconnected");
+                    log("Player " + player.id + " - short-term disconnection detected");
+                    player.temporarily_disconnected = true;
+                    player.disconnection_start = now;
                     pauseGameInRoom(player.room_id, player.id);
                     player.connected = false;
                 }
+            }
+        } else if (player.temporarily_disconnected) {
+            // Check if temporary disconnection becomes permanent
+            auto disconnection_time = now - player.disconnection_start;
+            auto disconnection_seconds = std::chrono::duration_cast<std::chrono::seconds>(disconnection_time).count();
+
+            if (disconnection_time > std::chrono::seconds(60)) {  // 90 seconds = long-term
+                log("Player " + player.id + " - long-term disconnection detected (requires manual reconnect)");
+                player.temporarily_disconnected = false;
+                // Player remains disconnected and requires RECONNECT message
+            } else {
+                log("Player " + player.id + " - temporarily disconnected for " + std::to_string(disconnection_seconds) + " seconds");
             }
         }
     }
@@ -451,13 +553,42 @@ void GambaServer::checkHeartbeats() {
 void GambaServer::pauseGameInRoom(const std::string& room_id, const std::string& disconnected_player) {
     if (room_id.empty()) return;
 
-    // Implementation for pausing game - we'll add this next
-    log("Game paused in room " + room_id + " - player " + disconnected_player + " disconnected");
+    std::lock_guard<std::mutex> lock(rooms_mutex);
+    auto room_it = rooms.find(room_id);
+    if (room_it != rooms.end()) {
+        auto& game_state = room_it->second.game_state;
+
+        if (game_state.phase == GamePhase::PLAYING) {
+            game_state.pauseGame("Player " + disconnected_player + " disconnected");
+            game_state.disconnected_players.insert(disconnected_player);
+
+            log("Game paused in room " + room_id + " - player " + disconnected_player + " disconnected");
+
+            // Notify remaining players
+            //broadcastGamePaused(room_id, disconnected_player);
+        }
+    }
 }
 
 void GambaServer::resumeGameInRoom(const std::string& room_id, const std::string& reconnected_player) {
     if (room_id.empty()) return;
 
-    // Implementation for resuming game - we'll add this next
-    log("Game resumed in room " + room_id + " - player " + reconnected_player + " reconnected");
+    std::lock_guard<std::mutex> lock(rooms_mutex);
+    auto room_it = rooms.find(room_id);
+    if (room_it != rooms.end()) {
+        auto& room = room_it->second;
+        auto& game_state = room.game_state;
+
+        game_state.disconnected_players.erase(reconnected_player);
+
+        log("DEBUG - Disconnected players remaining: " + std::to_string(game_state.disconnected_players.size()));
+        log("DEBUG - Game paused: " + std::string(game_state.is_paused ? "YES" : "NO"));
+
+        if (game_state.canResumeGame()) {
+            game_state.resumeGame();
+            log("Game resumed in room " + room_id + " - all players reconnected");
+        } else {
+            log("Game still paused in room " + room_id + " - waiting for other players");
+        }
+    }
 }

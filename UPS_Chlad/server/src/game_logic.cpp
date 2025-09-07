@@ -121,3 +121,18 @@ Card GambaGameState::getTopCard() const {
 bool GambaGameState::canStartGame() const {
     return phase == GamePhase::WAITING;
 }
+
+void GambaGameState::pauseGame(const std::string& reason) {
+    is_paused = true;
+    paused_reason = reason;
+}
+
+void GambaGameState::resumeGame() {
+    is_paused = false;
+    paused_reason = "";
+    disconnected_players.clear();
+}
+
+bool GambaGameState::canResumeGame() {
+    return is_paused && disconnected_players.empty();
+}

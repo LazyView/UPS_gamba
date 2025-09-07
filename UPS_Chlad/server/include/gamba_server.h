@@ -29,6 +29,9 @@ struct Player {
     std::string name;
     std::string room_id;
     bool connected;
+    std::chrono::steady_clock::time_point last_ping;
+    std::chrono::steady_clock::time_point disconnection_start;
+    bool temporarily_disconnected = false;
 
     Player();
     Player(const std::string& player_id, const std::string& player_name);
@@ -78,6 +81,7 @@ private:
 
     // Protocol handlers
     ProtocolMessage handleConnect(const ProtocolMessage& msg, int client_socket);
+    ProtocolMessage handleReconnect(const ProtocolMessage& msg, int client_socket);
     ProtocolMessage handleJoinRoom(const ProtocolMessage& msg, int client_socket);
     ProtocolMessage handlePing(const ProtocolMessage& msg);
     ProtocolMessage handleStartGame(const ProtocolMessage& msg, int client_socket);

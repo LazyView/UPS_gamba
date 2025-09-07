@@ -9,6 +9,7 @@
 #include <map>
 #include <random>
 #include <algorithm>
+#include <set>
 
 // Card representation
 struct Card {
@@ -45,6 +46,9 @@ struct GambaGameState {
     std::vector<Card> deck;
     std::vector<Card> discard_pile;
     std::map<std::string, PlayerGameState> player_states;
+    bool is_paused = false;
+    std::string paused_reason = "";
+    std::set<std::string> disconnected_players;
 
     std::string getCurrentPlayer();
     void nextPlayer();
@@ -53,6 +57,9 @@ struct GambaGameState {
     void dealCards();
     Card getTopCard() const;
     bool canStartGame() const;
+    void pauseGame(const std::string& reason);
+    void resumeGame();
+    bool canResumeGame();
 };
 
 #endif // GAME_LOGIC_H
