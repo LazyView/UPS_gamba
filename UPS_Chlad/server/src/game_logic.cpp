@@ -136,3 +136,157 @@ void GambaGameState::resumeGame() {
 bool GambaGameState::canResumeGame() {
     return is_paused && disconnected_players.empty();
 }
+
+GambaGameState::PlayResult GambaGameState::playCards(const std::string& player_id, const std::vector<std::string>& cards) {
+    if (phase != GamePhase::PLAYING) return PlayResult::GAME_OVER;
+
+    // Check if it's this player's turn
+    if (getCurrentPlayer() != player_id) {
+        std::cout << "DEBUG: Not player's turn. Current: " << getCurrentPlayer() << ", Requested: " << player_id << std::endl;
+        return PlayResult::INVALID_PLAYER;
+    }
+
+    if (cards.empty()) return PlayResult::INVALID_CARD;
+
+    auto& player_state = player_states[player_id];  // Keep only this one
+    std::cout << "DEBUG: Player " << player_id << " hand: " << player_state.getHandString() << std::endl;
+    std::cout << "DEBUG: Trying to play cards: ";
+    for (const auto& card : cards) std::cout << card << " ";
+    std::cout << std::endl;
+
+    std::vector<Card> cards_to_play;
+
+    // Parse and validate cards
+    for (const std::string& card_str : cards) {
+        bool found = false;
+
+        // Check in hand first
+        for (auto& card : player_state.hand) {
+            if (card.toString() == card_str) {
+                cards_to_play.push_back(card);
+                found = true;
+                break;
+            }
+        }
+
+        // If not in hand and hand is empty, check reserve cards
+        if (!found && player_state.hand.empty() && !player_state.reserve_cards.empty()) {
+            if (card_str == "RESERVE") {
+                cards_to_play.push_back(player_state.reserve_cards[0]);
+                found = true;
+            }
+        }
+
+        if (!found) {
+            std::cout << "DEBUG: Card " << card_str << " not found in hand" << std::endl;
+            return PlayResult::INVALID_CARD;
+        }
+    }
+
+    // Check if all cards have same value (for multiple card play)
+    if (cards_to_play.size() > 1) {
+        Card::Value first_value = cards_to_play[0].value;
+        for (const auto& card : cards_to_play) {
+            if (card.value != first_value) return PlayResult::INVALID_CARD;
+        }
+    }
+
+    // Check if cards can be played
+    Card top_card = getTopCard();
+    if (!canPlayCard(cards_to_play[0], top_card)) {
+        return PlayResult::PICKUP_REQUIRED;
+    }
+
+    // Execute the play
+    for (const auto& card_to_remove : cards_to_play) {
+        // Remove from hand
+        auto it = std::find_if(player_state.hand.begin(), player_state.hand.end(),
+            [&card_to_remove](const Card& c) {
+                return c.value == card_to_remove.value && c.suit == card_to_remove.suit;
+            });
+
+        if (it != player_state.hand.end()) {
+            player_state.hand.erase(it);
+        } else {
+            // Remove from reserve cards (for blind play)
+            auto reserve_it = std::find_if(player_state.reserve_cards.begin(), player_state.reserve_cards.end(),
+                [&card_to_remove](const Card& c) {
+                    return c.value == card_to_remove.value && c.suit == card_to_remove.suit;
+                });
+            if (reserve_it != player_state.reserve_cards.end()) {
+                player_state.reserve_cards.erase(reserve_it);
+            }
+        }
+
+        // Add to discard pile
+        discard_pile.push_back(card_to_remove);
+    }
+
+    // Handle special card effects
+    handleSpecialCardEffects(cards_to_play[0]);
+
+    // Draw cards back to hand (if deck not empty)
+    while (!deck.empty() && player_state.hand.size() < 3) {
+        player_state.hand.push_back(deck.back());
+        deck.pop_back();
+    }
+
+    // Check win condition
+    if (player_state.hasWon()) {
+        phase = GamePhase::FINISHED;
+        return PlayResult::SUCCESS;
+    }
+
+    // Move to next player
+    nextPlayer();
+
+    return PlayResult::SUCCESS;
+}
+
+bool GambaGameState::canPlayCard(const Card& card, const Card& top_card) const {
+    // Special cards can always be played
+    if (card.isSpecial()) return true;
+
+    // Regular cards must be higher or equal value
+    return static_cast<int>(card.value) >= static_cast<int>(top_card.value);
+}
+
+void GambaGameState::handleSpecialCardEffects(const Card& card) {
+    switch (card.value) {
+        case Card::TWO:
+            // Wild card - no special effect, acts as joker
+            break;
+
+        case Card::SEVEN:
+            // Reverse - next player must play 7 or lower
+            // TODO: Implement reverse direction logic
+            break;
+
+        case Card::TEN:
+            // Burn pile - remove discard pile from game
+            discard_pile.clear();
+            break;
+
+        default:
+            break;
+    }
+}
+
+bool GambaGameState::pickupPile(const std::string& player_id) {
+    if (phase != GamePhase::PLAYING) return false;
+
+    if (getCurrentPlayer() != player_id) return false;
+
+    auto& player_state = player_states[player_id];
+
+    // Add all discard pile cards to player's hand
+    for (const auto& card : discard_pile) {
+        player_state.hand.push_back(card);
+    }
+    discard_pile.clear();
+
+    // Move to next player
+    nextPlayer();
+
+    return true;
+}

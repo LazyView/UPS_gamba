@@ -85,6 +85,8 @@ private:
     ProtocolMessage handleJoinRoom(const ProtocolMessage& msg, int client_socket);
     ProtocolMessage handlePing(const ProtocolMessage& msg);
     ProtocolMessage handleStartGame(const ProtocolMessage& msg, int client_socket);
+    ProtocolMessage handlePlayCards(const ProtocolMessage& msg, int client_socket);
+    ProtocolMessage handlePickupPile(const ProtocolMessage& msg, int client_socket);
 
     // Utility methods
     std::string getPlayerIdFromSocket(int client_socket);
@@ -96,6 +98,7 @@ private:
 	void checkHeartbeats();
 	void pauseGameInRoom(const std::string& room_id, const std::string& disconnected_player);
 	void resumeGameInRoom(const std::string& room_id, const std::string& reconnected_player);
+    void broadcastGameState(const std::string& room_id);
 
 public:
     GambaServer(const ServerConfig& cfg);
