@@ -52,7 +52,7 @@ bool GambaServer::sendMessage(int client_socket, const ProtocolMessage& message)
 }
 
 ProtocolMessage GambaServer::handleConnect(const ProtocolMessage& msg, int client_socket) {
-    std::string player_name = msg.getData("name", "Anonymous");
+     std::string player_name = msg.getData("name", "Anonymous");
 
     // Check if this is a returning temporarily disconnected player
     {
@@ -75,9 +75,11 @@ ProtocolMessage GambaServer::handleConnect(const ProtocolMessage& msg, int clien
 
                 log("Player automatically reconnected (short-term): " + player_name + " (" + existing_player.id + ")");
 
-                // Try to resume game
+                // Try to resume game and broadcast state
                 if (!existing_player.room_id.empty()) {
                     resumeGameInRoom(existing_player.room_id, existing_player.id);
+                    // NEW: Send current game state to reconnected player
+                    sendGameStateToPlayer(existing_player.room_id, existing_player.id, client_socket);
                 }
 
                 return ProtocolHelper::createConnectedResponse(existing_player.id, player_name);
@@ -148,6 +150,8 @@ ProtocolMessage GambaServer::handleReconnect(const ProtocolMessage& msg, int cli
 
     if (!room_id.empty()) {
         resumeGameInRoom(room_id, player_id);
+        // NEW: Send current game state to reconnected player
+        sendGameStateToPlayer(room_id, player_id, client_socket);
     }
 
     ProtocolMessage response(MessageType::PLAYER_RECONNECTED);
@@ -247,6 +251,9 @@ ProtocolMessage GambaServer::handleStartGame(const ProtocolMessage& /* msg */, i
     log("Game started in room " + room_id + " with " +
         std::to_string(room.players.size()) + " players");
 
+	// Send starting state to players
+	broadcastGameState(room_id);
+
     ProtocolMessage response(MessageType::GAME_STARTED);
     response.room_id = room_id;
     response.setData("players", std::to_string(room.players.size()));
@@ -326,6 +333,15 @@ ProtocolMessage GambaServer::processMessage(const std::string& raw_message, int 
 
     log("Received " + ProtocolHelper::getMessageTypeName(msg.type) + " from socket " + std::to_string(client_socket));
 
+    // NEW: Update heartbeat for ANY valid message from connected player
+    std::string player_id = getPlayerIdFromSocket(client_socket);
+    if (!player_id.empty()) {
+        std::lock_guard<std::mutex> hb_lock(heartbeat_mutex);
+        player_last_ping[player_id] = std::chrono::steady_clock::now();
+        // Optional: log heartbeat updates for debugging
+        // log("Updated heartbeat for player: " + player_id);
+    }
+
     // Process based on message type
     switch (msg.type) {
         case MessageType::CONNECT:
@@ -348,6 +364,8 @@ ProtocolMessage GambaServer::processMessage(const std::string& raw_message, int 
 
         case MessageType::PICKUP_PILE:
             return handlePickupPile(msg, client_socket);
+		case MessageType::LEAVE_ROOM:
+    		return handleLeaveRoom(msg, client_socket);
 
         default:
             log("Unhandled message type: " + ProtocolHelper::getMessageTypeName(msg.type));
@@ -593,10 +611,35 @@ void GambaServer::resumeGameInRoom(const std::string& room_id, const std::string
         if (game_state.canResumeGame()) {
             game_state.resumeGame();
             log("Game resumed in room " + room_id + " - all players reconnected");
+
+            // NEW: Broadcast game state to all connected players when game resumes
+            broadcastGameState(room_id);
+
+            // NEW: Send notification that game resumed
+            broadcastGameResumed(room_id);
         } else {
             log("Game still paused in room " + room_id + " - waiting for other players");
         }
     }
+}
+
+void GambaServer::broadcastGameResumed(const std::string& room_id) {
+    auto& room = rooms[room_id];
+
+    for (const auto& player_id : room.players) {
+        auto socket_it = std::find_if(socket_to_player.begin(), socket_to_player.end(),
+            [&player_id](const auto& pair) { return pair.second == player_id; });
+
+        if (socket_it != socket_to_player.end()) {
+            ProtocolMessage msg(MessageType::GAME_RESUMED);
+            msg.room_id = room_id;
+            msg.player_id = player_id;
+            msg.setData("status", "resumed");
+
+            sendMessage(socket_it->first, msg);
+        }
+    }
+    log("Broadcasted game resumed to all players in room: " + room_id);
 }
 
 ProtocolMessage GambaServer::handlePlayCards(const ProtocolMessage& msg, int client_socket) {
@@ -643,12 +686,9 @@ ProtocolMessage GambaServer::handlePlayCards(const ProtocolMessage& msg, int cli
     if (result == GambaGameState::PlayResult::SUCCESS) {
         broadcastGameState(room_id);
 
-        // Check if game is over
+        // NEW: Check if game is over and broadcast game over message
         if (game_state.phase == GamePhase::FINISHED) {
-            ProtocolMessage game_over(MessageType::GAME_OVER);
-            game_over.room_id = room_id;
-            game_over.setData("winner", player_id);
-            // TODO: Broadcast game over to all players
+            broadcastGameOver(room_id, player_id);
         }
     }
 
@@ -685,6 +725,186 @@ ProtocolMessage GambaServer::handlePickupPile(const ProtocolMessage& msg, int cl
     }
 }
 
+ProtocolMessage GambaServer::handleLeaveRoom(const ProtocolMessage& msg, int client_socket) {
+    std::string player_id = getPlayerIdFromSocket(client_socket);
+    if (player_id.empty()) {
+        return ProtocolHelper::createErrorResponse("Not connected");
+    }
+
+    std::lock_guard<std::mutex> rooms_lock(rooms_mutex);
+    std::lock_guard<std::mutex> players_lock(players_mutex);
+
+    std::string room_id = players[player_id].room_id;
+    if (room_id.empty()) {
+        return ProtocolHelper::createErrorResponse("Not in a room");
+    }
+
+    auto& room = rooms[room_id];
+    auto& game_state = room.game_state;
+
+    log("Player " + player_id + " requesting to leave room " + room_id +
+        " (Game phase: " + std::to_string(static_cast<int>(game_state.phase)) + ")");
+
+    // Handle mid-game departure BEFORE removing from room
+    if (game_state.phase == GamePhase::PLAYING) {
+        handleMidGameDeparture(room_id, player_id);
+    }
+
+    // NOW remove player from room
+    auto it = std::find(room.players.begin(), room.players.end(), player_id);
+    if (it != room.players.end()) {
+        room.players.erase(it);
+    }
+
+    // Clear player's room assignment
+    players[player_id].room_id = "";
+
+    log("Player " + player_id + " left room " + room_id);
+
+    // Reset empty rooms
+    if (room.players.empty()) {
+        room.game_state = GambaGameState();
+        log("Room " + room_id + " is now empty and reset to WAITING phase");
+    }
+
+    ProtocolMessage response(MessageType::ROOM_LEFT);
+    response.player_id = player_id;
+    response.room_id = "";
+    response.setData("status", "left");
+    return response;
+}
+
+void GambaServer::handleMidGameDeparture(const std::string& room_id, const std::string& departing_player_id) {
+    auto& room = rooms[room_id];
+    auto& game_state = room.game_state;
+
+    log("Handling mid-game departure for player " + departing_player_id + " in room " + room_id);
+
+    // Remove from game state player_order
+    auto order_it = std::find(game_state.player_order.begin(),
+                             game_state.player_order.end(), departing_player_id);
+    if (order_it != game_state.player_order.end()) {
+        int departing_index = std::distance(game_state.player_order.begin(), order_it);
+        game_state.player_order.erase(order_it);
+
+        // Adjust current player index if needed
+        if (game_state.current_player_index >= departing_index && game_state.current_player_index > 0) {
+            game_state.current_player_index--;
+        }
+
+        // If current player index is out of bounds, wrap around
+        if (game_state.current_player_index >= game_state.player_order.size()) {
+            game_state.current_player_index = 0;
+        }
+    }
+
+    // Remove from player states
+    game_state.player_states.erase(departing_player_id);
+
+    // Remove from disconnected players set if present
+    game_state.disconnected_players.erase(departing_player_id);
+
+    // Check remaining players count
+    int remaining_players = room.players.size() - 1; // -1 because we haven't removed from room.players yet
+
+    log("Players remaining after departure: " + std::to_string(remaining_players));
+
+    if (remaining_players < 2) {
+        // End game - not enough players to continue
+        log("Ending game in room " + room_id + " - not enough players remaining");
+        endGameDueToDisconnection(room_id, departing_player_id);
+    } else {
+        // Game continues - notify remaining players
+        broadcastPlayerLeft(room_id, departing_player_id);
+
+        // Update game state for remaining players
+        broadcastGameState(room_id);
+
+        // Resume game if it was paused
+        if (game_state.is_paused) {
+            game_state.resumeGame();
+            broadcastGameResumed(room_id);
+        }
+    }
+}
+
+void GambaServer::broadcastPlayerLeft(const std::string& room_id, const std::string& departed_player_id) {
+    auto& room = rooms[room_id];
+
+    for (const auto& player_id : room.players) {
+        if (player_id == departed_player_id) continue; // Skip the departing player
+
+        auto socket_it = std::find_if(socket_to_player.begin(), socket_to_player.end(),
+            [&player_id](const auto& pair) { return pair.second == player_id; });
+
+        if (socket_it != socket_to_player.end()) {
+            ProtocolMessage msg(MessageType::PLAYER_DISCONNECTED);
+            msg.room_id = room_id;
+            msg.player_id = player_id;
+            msg.setData("departed_player", departed_player_id);
+            msg.setData("departed_player_name", players[departed_player_id].name);
+            msg.setData("reason", "left_game");
+
+            sendMessage(socket_it->first, msg);
+        }
+    }
+
+    log("Notified remaining players in room " + room_id + " about player departure");
+}
+
+void GambaServer::endGameDueToDisconnection(const std::string& room_id, const std::string& departed_player_id) {
+    auto& room = rooms[room_id];
+    auto& game_state = room.game_state;
+
+    // Set game as finished
+    game_state.phase = GamePhase::FINISHED;
+
+    // Determine winner (remaining player if any)
+    std::string winner_id = "";
+    if (!room.players.empty()) {
+        // Find a remaining player (excluding the one who just left)
+        for (const auto& player_id : room.players) {
+            if (player_id != departed_player_id) {
+                winner_id = player_id;
+                break;
+            }
+        }
+    }
+
+    log("Game ended in room " + room_id + " due to player departure. Winner: " +
+        (winner_id.empty() ? "none" : winner_id));
+
+    // Broadcast game over to remaining players
+    for (const auto& player_id : room.players) {
+        if (player_id == departed_player_id) continue;
+
+        auto socket_it = std::find_if(socket_to_player.begin(), socket_to_player.end(),
+            [&player_id](const auto& pair) { return pair.second == player_id; });
+
+        if (socket_it != socket_to_player.end()) {
+            ProtocolMessage msg(MessageType::GAME_OVER);
+            msg.room_id = room_id;
+            msg.player_id = player_id;
+            msg.setData("winner", winner_id);
+            msg.setData("reason", "opponent_disconnected");
+            msg.setData("departed_player", departed_player_id);
+
+            if (player_id == winner_id) {
+                msg.setData("result", "won");
+            } else {
+                msg.setData("result", "draw");
+            }
+
+            sendMessage(socket_it->first, msg);
+        }
+    }
+
+    // Return remaining players to lobby after a brief moment
+    log("DEBUG: About to return players to lobby from room " + room_id);
+	returnPlayersToLobby(room_id);
+	log("DEBUG: Finished returning players to lobby");
+}
+
 void GambaServer::broadcastGameState(const std::string& room_id) {
     auto& room = rooms[room_id];
     auto& game_state = room.game_state;
@@ -718,6 +938,143 @@ void GambaServer::broadcastGameState(const std::string& room_id) {
     }
 }
 
+void GambaServer::broadcastGameOver(const std::string& room_id, const std::string& winner_id) {
+    auto& room = rooms[room_id];
+
+    log("Game finished in room " + room_id + " - Winner: " + winner_id);
+
+    for (const auto& player_id : room.players) {
+        auto socket_it = std::find_if(socket_to_player.begin(), socket_to_player.end(),
+            [&player_id](const auto& pair) { return pair.second == player_id; });
+
+        if (socket_it != socket_to_player.end()) {
+            ProtocolMessage msg(MessageType::GAME_OVER);
+            msg.room_id = room_id;
+            msg.player_id = player_id;
+            msg.setData("winner", winner_id);
+            msg.setData("winner_name", players[winner_id].name);
+
+            // Tell each player if they won or lost
+            if (player_id == winner_id) {
+                msg.setData("result", "won");
+            } else {
+                msg.setData("result", "lost");
+            }
+
+            sendMessage(socket_it->first, msg);
+        }
+    }
+
+    log("Broadcasted game over to all players in room: " + room_id);
+	returnPlayersToLobby(room_id);
+}
+
+void GambaServer::returnPlayersToLobby(const std::string& room_id) {
+    log("DEBUG: returnPlayersToLobby - START for room " + room_id);
+
+    auto room_it = rooms.find(room_id);
+    if (room_it == rooms.end()) {
+        log("DEBUG: returnPlayersToLobby - Room not found, returning");
+        return;
+    }
+
+    auto& room = room_it->second;
+    log("DEBUG: returnPlayersToLobby - Found room with " + std::to_string(room.players.size()) + " players");
+    log("DEBUG: returnPlayersToLobby - Room phase BEFORE reset: " + std::to_string(static_cast<int>(room.game_state.phase)));
+
+    // Add detailed logging for each player
+    for (const auto& player_id : room.players) {
+        log("DEBUG: Processing player: " + player_id);
+
+        if (players.find(player_id) != players.end()) {
+            players[player_id].room_id = "";
+            log("DEBUG: Cleared room_id for player: " + player_id);
+        }
+
+        auto socket_it = std::find_if(socket_to_player.begin(), socket_to_player.end(),
+            [&player_id](const auto& pair) { return pair.second == player_id; });
+
+        if (socket_it != socket_to_player.end()) {
+            log("DEBUG: Found socket for player: " + player_id);
+            ProtocolMessage lobby_msg(MessageType::ROOM_LEFT);
+            lobby_msg.player_id = player_id;
+            lobby_msg.room_id = "";
+            lobby_msg.setData("status", "returned_to_lobby");
+            lobby_msg.setData("reason", "game_finished");
+
+            sendMessage(socket_it->first, lobby_msg);
+            log("DEBUG: Sent ROOM_LEFT message to player: " + player_id);
+        } else {
+            log("DEBUG: No socket found for player: " + player_id);
+        }
+    }
+
+	// ADD THIS MISSING PART:
+    log("DEBUG: About to clear room.players (size: " + std::to_string(room.players.size()) + ")");
+    room.players.clear();
+    log("DEBUG: After clear, room.players size: " + std::to_string(room.players.size()));
+
+    log("DEBUG: About to reset game_state");
+    room.game_state = GambaGameState();
+    log("DEBUG: After reset, room phase: " + std::to_string(static_cast<int>(room.game_state.phase)));
+
+    room.active = true;
+
+    log("DEBUG: returnPlayersToLobby - FINISHED");
+}
+
+void GambaServer::sendGameStateToPlayer(const std::string& room_id, const std::string& player_id, int client_socket) {
+    std::lock_guard<std::mutex> rooms_lock(rooms_mutex);
+
+    auto room_it = rooms.find(room_id);
+    if (room_it == rooms.end()) return;
+
+    auto& room = room_it->second;
+    auto& game_state = room.game_state;
+
+    // Send comprehensive game state to the specific player
+    ProtocolMessage msg(MessageType::GAME_STATE);
+    msg.room_id = room_id;
+    msg.player_id = player_id;
+
+    // Add game state data
+    msg.setData("phase", std::to_string(static_cast<int>(game_state.phase)));
+    msg.setData("current_player", game_state.getCurrentPlayer());
+    msg.setData("top_card", game_state.getTopCard().toString());
+    msg.setData("discard_size", std::to_string(game_state.discard_pile.size()));
+    msg.setData("deck_empty", game_state.deck.empty() ? "true" : "false");
+    msg.setData("is_paused", game_state.is_paused ? "true" : "false");
+
+    if (!game_state.paused_reason.empty()) {
+        msg.setData("paused_reason", game_state.paused_reason);
+    }
+
+    // Player-specific data
+    if (game_state.player_states.count(player_id)) {
+        auto& player_state = game_state.player_states[player_id];
+        msg.setData("hand", player_state.getHandString());
+        msg.setData("reserve_count", std::to_string(player_state.reserve_cards.size()));
+        msg.setData("is_turn", player_state.is_turn ? "true" : "false");
+    }
+
+    // Add info about other players (without their cards)
+    std::string other_players = "";
+    for (const auto& other_player_id : room.players) {
+        if (other_player_id != player_id && game_state.player_states.count(other_player_id)) {
+            if (!other_players.empty()) other_players += ",";
+            auto& other_state = game_state.player_states[other_player_id];
+            other_players += other_player_id + ":" +
+                           std::to_string(other_state.hand.size()) + ":" +
+                           std::to_string(other_state.reserve_cards.size());
+        }
+    }
+    if (!other_players.empty()) {
+        msg.setData("other_players", other_players);
+    }
+
+    sendMessage(client_socket, msg);
+    log("Sent game state to reconnected player: " + player_id);
+}
 
 
 

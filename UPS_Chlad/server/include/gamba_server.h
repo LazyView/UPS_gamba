@@ -87,6 +87,7 @@ private:
     ProtocolMessage handleStartGame(const ProtocolMessage& msg, int client_socket);
     ProtocolMessage handlePlayCards(const ProtocolMessage& msg, int client_socket);
     ProtocolMessage handlePickupPile(const ProtocolMessage& msg, int client_socket);
+	ProtocolMessage handleLeaveRoom(const ProtocolMessage& msg, int client_socket);
 
     // Utility methods
     std::string getPlayerIdFromSocket(int client_socket);
@@ -99,6 +100,13 @@ private:
 	void pauseGameInRoom(const std::string& room_id, const std::string& disconnected_player);
 	void resumeGameInRoom(const std::string& room_id, const std::string& reconnected_player);
     void broadcastGameState(const std::string& room_id);
+	void sendGameStateToPlayer(const std::string& room_id, const std::string& player_id, int client_socket);
+	void broadcastGameResumed(const std::string& room_id);
+	void broadcastGameOver(const std::string& room_id, const std::string& winner_id);
+	void returnPlayersToLobby(const std::string& room_id);
+	void handleMidGameDeparture(const std::string& room_id, const std::string& departing_player_id);
+	void broadcastPlayerLeft(const std::string& room_id, const std::string& departed_player_id);
+	void endGameDueToDisconnection(const std::string& room_id, const std::string& departed_player_id);
 
 public:
     GambaServer(const ServerConfig& cfg);
