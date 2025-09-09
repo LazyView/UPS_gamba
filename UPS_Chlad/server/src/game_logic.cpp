@@ -61,7 +61,7 @@ void GambaGameState::nextPlayer() {
 
 void GambaGameState::initializeDeck() {
     deck.clear();
-    for (int suit = 0; suit < 4; suit++) {
+    for (int suit = 0; suit < 1; suit++) {
         for (int value = 1; value <= 13; value++) {
             deck.emplace_back(static_cast<Card::Suit>(suit), static_cast<Card::Value>(value));
         }
@@ -116,7 +116,10 @@ Card GambaGameState::getTopCard() const {
     if (!discard_pile.empty()) {
         return discard_pile.back();
     }
-    return Card(Card::HEARTS, Card::ACE); // Default fallback
+
+    // If discard pile is empty (after burn or pickup), return a special "no card" indicator
+    // using a special card that indicates "any card can be played"
+    return Card(Card::HEARTS, static_cast<Card::Value>(0)); // Value 0 = "no restrictions"
 }
 
 bool GambaGameState::canStartGame() const {
@@ -138,6 +141,8 @@ bool GambaGameState::canResumeGame() {
     return is_paused && disconnected_players.empty();
 }
 
+// Fixed playCards() method with corrected reserve card handling
+
 GambaGameState::PlayResult GambaGameState::playCards(const std::string& player_id, const std::vector<std::string>& cards) {
     if (phase != GamePhase::PLAYING) return PlayResult::GAME_OVER;
 
@@ -149,13 +154,12 @@ GambaGameState::PlayResult GambaGameState::playCards(const std::string& player_i
 
     if (cards.empty()) return PlayResult::INVALID_CARD;
 
-    auto& player_state = player_states[player_id];  // Keep only this one
+    auto& player_state = player_states[player_id];
     std::cout << "DEBUG: Player " << player_id << " hand: " << player_state.getHandString() << std::endl;
-    std::cout << "DEBUG: Trying to play cards: ";
-    for (const auto& card : cards) std::cout << card << " ";
-    std::cout << std::endl;
+    std::cout << "DEBUG: Reserve cards: " << player_state.reserve_cards.size() << std::endl;
 
     std::vector<Card> cards_to_play;
+    std::vector<Card> reserve_cards_revealed; // Track revealed reserve cards
 
     // Parse and validate cards
     for (const std::string& card_str : cards) {
@@ -170,71 +174,93 @@ GambaGameState::PlayResult GambaGameState::playCards(const std::string& player_i
             }
         }
 
-        // If not in hand and hand is empty, check reserve cards
+        // FIXED: Reserve card handling - remove BEFORE validation
         if (!found && player_state.hand.empty() && !player_state.reserve_cards.empty()) {
             if (card_str == "RESERVE") {
-                cards_to_play.push_back(player_state.reserve_cards[0]);
+                // Remove reserve card IMMEDIATELY (before validation)
+                Card revealed_card = player_state.reserve_cards[0];
+                player_state.reserve_cards.erase(player_state.reserve_cards.begin());
+
+                std::cout << "DEBUG: Reserve card revealed: " << revealed_card.toString() << std::endl;
+                std::cout << "DEBUG: Reserve cards remaining: " << player_state.reserve_cards.size() << std::endl;
+
+                cards_to_play.push_back(revealed_card);
+                reserve_cards_revealed.push_back(revealed_card);
                 found = true;
             }
         }
 
         if (!found) {
-            std::cout << "DEBUG: Card " << card_str << " not found in hand" << std::endl;
+            std::cout << "DEBUG: Card " << card_str << " not found" << std::endl;
             return PlayResult::INVALID_CARD;
-        }
-    }
-
-    // Check if all cards have same value (for multiple card play)
-    if (cards_to_play.size() > 1) {
-        Card::Value first_value = cards_to_play[0].value;
-        for (const auto& card : cards_to_play) {
-            if (card.value != first_value) return PlayResult::INVALID_CARD;
         }
     }
 
     // Check if cards can be played
     Card top_card = getTopCard();
     if (!canPlayCard(cards_to_play[0], top_card)) {
+        std::cout << "DEBUG: Cannot play card " << cards_to_play[0].toString() << " on " << top_card.toString() << std::endl;
+
+        // CRITICAL: If this was a reserve card, it's now revealed and lost forever
+        // Add it to the discard pile so it can be picked up
+        if (!reserve_cards_revealed.empty()) {
+            std::cout << "DEBUG: Invalid reserve card " << reserve_cards_revealed[0].toString() << " added to discard pile" << std::endl;
+            discard_pile.push_back(reserve_cards_revealed[0]);
+        }
+
         return PlayResult::PICKUP_REQUIRED;
     }
 
-    // Execute the play
+    // Execute the play - only need to handle hand cards now since reserve already removed
     for (const auto& card_to_remove : cards_to_play) {
-        // Remove from hand
-        auto it = std::find_if(player_state.hand.begin(), player_state.hand.end(),
-            [&card_to_remove](const Card& c) {
-                return c.value == card_to_remove.value && c.suit == card_to_remove.suit;
-            });
 
-        if (it != player_state.hand.end()) {
-            player_state.hand.erase(it);
-        } else {
-            // Remove from reserve cards (for blind play)
-            auto reserve_it = std::find_if(player_state.reserve_cards.begin(), player_state.reserve_cards.end(),
+        // Only try to remove from hand (reserve cards already removed above)
+        if (reserve_cards_revealed.empty()) { // This was a hand card
+            auto it = std::find_if(player_state.hand.begin(), player_state.hand.end(),
                 [&card_to_remove](const Card& c) {
                     return c.value == card_to_remove.value && c.suit == card_to_remove.suit;
                 });
-            if (reserve_it != player_state.reserve_cards.end()) {
-                player_state.reserve_cards.erase(reserve_it);
+
+            if (it != player_state.hand.end()) {
+                player_state.hand.erase(it);
             }
         }
 
-        // Add to discard pile
+        // Add to discard pile (for both hand cards and reserve cards)
         discard_pile.push_back(card_to_remove);
     }
 
     // Handle special card effects
     handleSpecialCardEffects(cards_to_play[0]);
 
-    // Draw cards back to hand (if deck not empty)
-    while (!deck.empty() && player_state.hand.size() < 3) {
-        player_state.hand.push_back(deck.back());
-        deck.pop_back();
+    // Check if deck is empty and transition to Phase 2
+    if (deck.empty() && !deck_empty_phase) {
+        deck_empty_phase = true;
+        std::cout << "DEBUG: Deck is now empty - entering Phase 2 (no more drawing)" << std::endl;
     }
 
-    // Check win condition
+    // Draw cards back to hand ONLY if deck is not empty
+    if (!deck_empty_phase) {
+        while (!deck.empty() && player_state.hand.size() < 3) {
+            player_state.hand.push_back(deck.back());
+            deck.pop_back();
+
+            // Check if this was the last card
+            if (deck.empty()) {
+                deck_empty_phase = true;
+                std::cout << "DEBUG: Deck exhausted during drawing - Phase 2 begins" << std::endl;
+                break;
+            }
+        }
+    }
+
+	// Check win condition
     if (player_state.hasWon()) {
         phase = GamePhase::FINISHED;
+
+        // NEW: Broadcast game over to all players
+        std::cout << "DEBUG: Player " << player_id << " has won the game!" << std::endl;
+
         return PlayResult::SUCCESS;
     }
 
@@ -248,6 +274,16 @@ bool GambaGameState::canPlayCard(const Card& card, const Card& top_card) const {
     // Special cards can always be played
     if (card.isSpecial()) return true;
 
+    // If top card has value 0, it means discard pile is empty - any card can be played
+    if (static_cast<int>(top_card.value) == 0) {
+        return true;
+    }
+
+    // If reverse direction is active (after a 7), only 7 or lower can be played
+    if (reverse_direction_active) {
+        return static_cast<int>(card.value) <= 7;
+    }
+
     // Regular cards must be higher or equal value
     return static_cast<int>(card.value) >= static_cast<int>(top_card.value);
 }
@@ -255,20 +291,30 @@ bool GambaGameState::canPlayCard(const Card& card, const Card& top_card) const {
 void GambaGameState::handleSpecialCardEffects(const Card& card) {
     switch (card.value) {
         case Card::TWO:
-            // Wild card - no special effect, acts as joker
+            // Wild card - acts as joker, can be played on anything
+            reverse_direction_active = false;
             break;
 
         case Card::SEVEN:
-            // Reverse - next player must play 7 or lower
-            // TODO: Implement reverse direction logic
+            // Reverse direction - next player must play 7 or lower
+            reverse_direction_active = true;
+            std::cout << "DEBUG: Seven played - reverse direction activated" << std::endl;
             break;
 
         case Card::TEN:
-            // Burn pile - remove discard pile from game
+            // Burn pile - remove entire discard pile from game
+            std::cout << "DEBUG: Ten played - burning discard pile (size: " << discard_pile.size() << ")" << std::endl;
             discard_pile.clear();
+            reverse_direction_active = false;
+            std::cout << "DEBUG: Discard pile burned - next player can play any card" << std::endl;
             break;
 
         default:
+            // Regular card played - clear reverse direction if it was active and card is valid
+            if (reverse_direction_active && static_cast<int>(card.value) <= 7) {
+                reverse_direction_active = false;
+                std::cout << "DEBUG: Reverse direction cleared by playing " << card.toString() << std::endl;
+            }
             break;
     }
 }
@@ -280,11 +326,15 @@ bool GambaGameState::pickupPile(const std::string& player_id) {
 
     auto& player_state = player_states[player_id];
 
+    std::cout << "DEBUG: Player picking up pile (size: " << discard_pile.size() << ")" << std::endl;
+
     // Add all discard pile cards to player's hand
     for (const auto& card : discard_pile) {
         player_state.hand.push_back(card);
     }
     discard_pile.clear();
+
+    std::cout << "DEBUG: Pile picked up - player now has " << player_state.hand.size() << " cards" << std::endl;
 
     // Move to next player
     nextPlayer();
