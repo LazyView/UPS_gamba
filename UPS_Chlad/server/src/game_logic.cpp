@@ -2,6 +2,7 @@
 // KIV/UPS Network Programming Project
 
 #include "../include/game_logic.h"
+#include <iostream>
 
 // Card implementation
 Card::Card(Suit s, Value v) : suit(s), value(v) {}

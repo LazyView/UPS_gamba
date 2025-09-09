@@ -532,7 +532,7 @@ void GambaServer::checkHeartbeats() {
                 auto seconds = std::chrono::duration_cast<std::chrono::seconds>(time_since_ping).count();
                 log("Player " + player.id + " last ping: " + std::to_string(seconds) + " seconds ago");
 
-                if (time_since_ping > std::chrono::seconds(30)) {
+                if (time_since_ping > std::chrono::seconds(120)) {
                     log("Player " + player.id + " - short-term disconnection detected");
                     player.temporarily_disconnected = true;
                     player.disconnection_start = now;
@@ -545,7 +545,7 @@ void GambaServer::checkHeartbeats() {
             auto disconnection_time = now - player.disconnection_start;
             auto disconnection_seconds = std::chrono::duration_cast<std::chrono::seconds>(disconnection_time).count();
 
-            if (disconnection_time > std::chrono::seconds(60)) {  // 90 seconds = long-term
+            if (disconnection_time > std::chrono::seconds(240)) {  // 90 seconds = long-term
                 log("Player " + player.id + " - long-term disconnection detected (requires manual reconnect)");
                 player.temporarily_disconnected = false;
                 // Player remains disconnected and requires RECONNECT message

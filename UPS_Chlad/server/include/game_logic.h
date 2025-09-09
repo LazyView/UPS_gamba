@@ -10,7 +10,6 @@
 #include <random>
 #include <algorithm>
 #include <set>
-#include <ostream>
 
 // Card representation
 struct Card {
