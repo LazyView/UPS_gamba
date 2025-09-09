@@ -11,18 +11,18 @@
 
 // Message types for client-server communication
 enum class MessageType {
-    // Client -> Server
-    CONNECT = 0,	// Client requesting connection
-    DISCONNECT = 1,	// Client requesting disconnection
-    JOIN_ROOM = 2,	// Client requesting room joining
+    // gamba-client -> Server
+    CONNECT = 0,	// gamba-client requesting connection
+    DISCONNECT = 1,	// gamba-client requesting disconnection
+    JOIN_ROOM = 2,	// gamba-client requesting room joining
     LEAVE_ROOM = 3,	// Clint requesting room leaving
-    PING = 4,		// Client pinging server
-	START_GAME = 5,	// Client requesting game start
+    PING = 4,		// gamba-client pinging server
+	START_GAME = 5,	// gamba-client requesting game start
 	RECONNECT = 6,
-    PLAY_CARDS = 7,         // Client plays cards
-    PICKUP_PILE = 8,        // Client picks up discard pile
+    PLAY_CARDS = 7,         // gamba-client plays cards
+    PICKUP_PILE = 8,        // gamba-client picks up discard pile
 
-    // Server -> Client
+    // Server -> gamba-client
     CONNECTED = 100, 			// Server notifies about connection
     ROOM_JOINED = 101,			// Sever notifies about Player joining room
     ROOM_LEFT = 102,			// Server notifies about Player leaving room

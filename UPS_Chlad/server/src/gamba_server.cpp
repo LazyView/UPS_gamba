@@ -187,10 +187,39 @@ ProtocolMessage GambaServer::handleJoinRoom(const ProtocolMessage& msg, int clie
 
         // Add player to room
         auto& room = rooms[room_id];
+		// Send info about each existing player to the joining player
+    	for (const auto& existing_player_id : room.players) {
+        	if (existing_player_id != player_id) { // Skip self
+				log("Telling " + player_id + " about existing player: " + existing_player_id);
+            	ProtocolMessage existing_player_msg(MessageType::ROOM_JOINED);
+            	existing_player_msg.player_id = existing_player_id;
+            	existing_player_msg.room_id = room_id;
+            	existing_player_msg.setData("player_name", players[existing_player_id].name);
+
+            	sendMessage(client_socket, existing_player_msg);
+				 log("Sent existing player info to " + player_id);
+        	}
+    	}
         room.players.push_back(player_id);
 
         // Update player's room
         players[player_id].room_id = room_id;
+
+        // NEW: Broadcast join event to ALL players in the room
+        for (const auto& existing_player_id : room.players) {
+			if (existing_player_id == player_id) continue;
+            auto socket_it = std::find_if(socket_to_player.begin(), socket_to_player.end(),
+                [&existing_player_id](const auto& pair) { return pair.second == existing_player_id; });
+
+            if (socket_it != socket_to_player.end()) {
+                ProtocolMessage broadcast_msg(MessageType::ROOM_JOINED);
+                broadcast_msg.player_id = player_id;  // The joining player
+                broadcast_msg.room_id = room_id;
+                broadcast_msg.setData("player_name", players[player_id].name);
+
+                sendMessage(socket_it->first, broadcast_msg);
+            }
+        }
     }
 
     log("Player " + player_id + " joined room " + room_id);
@@ -253,6 +282,22 @@ ProtocolMessage GambaServer::handleStartGame(const ProtocolMessage& /* msg */, i
 
 	// Send starting state to players
 	broadcastGameState(room_id);
+
+	for (const auto& room_player_id : room.players) {
+        auto socket_it = std::find_if(socket_to_player.begin(), socket_to_player.end(),
+            [&room_player_id](const auto& pair) { return pair.second == room_player_id; });
+
+        if (socket_it != socket_to_player.end()) {
+            ProtocolMessage game_started_msg(MessageType::GAME_STARTED);
+            game_started_msg.room_id = room_id;
+            game_started_msg.setData("players", std::to_string(room.players.size()));
+            game_started_msg.setData("current_player", game_state.getCurrentPlayer());
+            game_started_msg.setData("top_card", game_state.getTopCard().toString());
+            game_started_msg.setData("status", "started");
+
+            sendMessage(socket_it->first, game_started_msg);
+        }
+    }
 
     ProtocolMessage response(MessageType::GAME_STARTED);
     response.room_id = room_id;
@@ -375,7 +420,7 @@ ProtocolMessage GambaServer::processMessage(const std::string& raw_message, int 
 
 void GambaServer::handleClient(int client_socket, std::string client_ip, int client_port) {
     int client_num = ++client_count;
-    log("Client #" + std::to_string(client_num) + " connected from "
+    log("gamba-client #" + std::to_string(client_num) + " connected from "
         + client_ip + ":" + std::to_string(client_port));
 
     char buffer[1024];
@@ -386,9 +431,9 @@ void GambaServer::handleClient(int client_socket, std::string client_ip, int cli
 
         if (bytes_received <= 0) {
             if (bytes_received == 0) {
-                log("Client #" + std::to_string(client_num) + " disconnected gracefully");
+                log("gamba-client #" + std::to_string(client_num) + " disconnected gracefully");
             } else {
-                log("Client #" + std::to_string(client_num) + " connection error");
+                log("gamba-client #" + std::to_string(client_num) + " connection error");
             }
             break;
         }
@@ -408,11 +453,11 @@ void GambaServer::handleClient(int client_socket, std::string client_ip, int cli
 
         // Send response
         if (!sendMessage(client_socket, response)) {
-            log("Failed to send response to Client #" + std::to_string(client_num));
+            log("Failed to send response to gamba-client #" + std::to_string(client_num));
             break;
         }
 
-        log("Sent " + ProtocolHelper::getMessageTypeName(response.type) + " response to Client #" + std::to_string(client_num));
+        log("Sent " + ProtocolHelper::getMessageTypeName(response.type) + " response to gamba-client #" + std::to_string(client_num));
     }
 
     // Handle disconnection
@@ -421,7 +466,7 @@ void GambaServer::handleClient(int client_socket, std::string client_ip, int cli
     // Cleanup
     close(client_socket);
     --client_count;
-    log("Client #" + std::to_string(client_num) + " connection closed. Active: " + std::to_string(client_count.load()));
+    log("gamba-client #" + std::to_string(client_num) + " connection closed. Active: " + std::to_string(client_count.load()));
 }
 
 bool GambaServer::start() {

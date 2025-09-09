@@ -61,7 +61,7 @@ void GambaGameState::nextPlayer() {
 
 void GambaGameState::initializeDeck() {
     deck.clear();
-    for (int suit = 0; suit < 1; suit++) {
+    for (int suit = 0; suit < 4; suit++) {
         for (int value = 1; value <= 13; value++) {
             deck.emplace_back(static_cast<Card::Suit>(suit), static_cast<Card::Value>(value));
         }
