@@ -49,6 +49,8 @@ struct GambaGameState {
     bool is_paused = false;
     std::string paused_reason = "";
     std::set<std::string> disconnected_players;
+    enum class PlayResult { SUCCESS, INVALID_PLAYER, INVALID_CARD, GAME_OVER, PICKUP_REQUIRED };
+
 
     std::string getCurrentPlayer();
     void nextPlayer();
@@ -60,6 +62,10 @@ struct GambaGameState {
     void pauseGame(const std::string& reason);
     void resumeGame();
     bool canResumeGame();
+    PlayResult playCards(const std::string& player_id, const std::vector<std::string>& cards);
+    bool pickupPile(const std::string& player_id);
+    bool canPlayCard(const Card& card, const Card& top_card) const;
+    void handleSpecialCardEffects(const Card& card);
 };
 
 #endif // GAME_LOGIC_H

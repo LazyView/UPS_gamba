@@ -19,6 +19,8 @@ enum class MessageType {
     PING = 4,		// Client pinging server
 	START_GAME = 5,	// Client requesting game start
 	RECONNECT = 6,
+    PLAY_CARDS = 7,         // Client plays cards
+    PICKUP_PILE = 8,        // Client picks up discard pile
 
     // Server -> Client
     CONNECTED = 100, 			// Server notifies about connection
@@ -31,7 +33,9 @@ enum class MessageType {
 	PLAYER_DISCONNECTED = 107,
 	GAME_PAUSED = 108,
 	PLAYER_RECONNECTED = 109,
-	GAME_RESUMED = 110
+	GAME_RESUMED = 110,
+    TURN_RESULT = 111,      // Server responds to turn actions
+    GAME_OVER = 112         // Server announces game completion
 };
 
 // Simple protocol message structure
@@ -193,10 +197,14 @@ public:
 			case MessageType::GAME_STARTED: return "GAME_STARTED";
 			case MessageType::GAME_STATE: return "GAME_STATE";
 			case MessageType::RECONNECT: return "RECONNECT";
+            case MessageType::PLAY_CARDS: return "PLAY_CARDS";
+            case MessageType::PICKUP_PILE: return "PICKUP_PILE";
 			case MessageType::PLAYER_DISCONNECTED: return "PLAYER_DISCONNECTED";
 			case MessageType::GAME_PAUSED: return "GAME_PAUSED";
 			case MessageType::PLAYER_RECONNECTED: return "PLAYER_RECONNECTED";
 			case MessageType::GAME_RESUMED: return "GAME_RESUMED";
+            case MessageType::TURN_RESULT: return "TURN_RESULT";
+            case MessageType::GAME_OVER: return "GAME_OVER";
             default: return "UNKNOWN";
         }
     }
