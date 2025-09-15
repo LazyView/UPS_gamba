@@ -98,12 +98,16 @@ public class NetworkManager {
     }
 
     public void sendMessage(ProtocolMessage message) {
-        if (!isConnected()) return;
+        if (!isConnected()) {
+            System.err.println("Cannot send message - not connected");
+            return;
+        }
 
         try {
             String serialized = message.serialize();
             System.out.println("SEND: " + serialized);
             writer.println(serialized);
+            writer.flush();
         } catch (Exception e) {
             System.err.println("Failed to send message: " + e.getMessage());
             handleConnectionLost();

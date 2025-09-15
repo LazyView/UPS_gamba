@@ -179,31 +179,42 @@ public class LobbyPanel extends JPanel {
         String joiningRoomId = message.getRoomId();
         String playerName = message.getData("player_name", joiningPlayerId);
 
+        System.out.println("DEBUG: Room joined - PlayerID: " + joiningPlayerId +
+                ", RoomID: " + joiningRoomId + ", PlayerName: " + playerName);
+        System.out.println("DEBUG: My PlayerID: " + networkManager.getPlayerId());
+        System.out.println("DEBUG: Current room: " + currentRoomId);
+
         if (joiningPlayerId.equals(networkManager.getPlayerId())) {
             // I joined a room
+            System.out.println("DEBUG: I joined room " + joiningRoomId);
             currentRoomId = joiningRoomId;
 
-            // Only clear and reset if this is truly a fresh join (no existing players known)
+            // Only clear if this is a completely new room for me
             if (roomPlayers.isEmpty()) {
                 roomPlayers.add(networkManager.getPlayerName());
-            } else {
-                // I already know about other players, just add myself if not already there
-                if (!roomPlayers.contains(networkManager.getPlayerName())) {
-                    roomPlayers.add(networkManager.getPlayerName());
+                System.out.println("DEBUG: First time joining - added myself: " + networkManager.getPlayerName());
+            }
+        } else {
+            // Someone else joined/is in my room
+            System.out.println("DEBUG: Other player event - joiningRoomId: " + joiningRoomId + ", currentRoomId: " + currentRoomId);
+
+            if (joiningRoomId.equals(currentRoomId)) {
+                if (!roomPlayers.contains(playerName)) {
+                    roomPlayers.add(playerName);
+                    System.out.println("DEBUG: Added other player: " + playerName);
+                }
+            } else if (currentRoomId.isEmpty()) {
+                // I might be learning about a room I'm joining
+                currentRoomId = joiningRoomId;
+                if (!roomPlayers.contains(playerName)) {
+                    roomPlayers.add(playerName);
+                    System.out.println("DEBUG: Learning about room, added: " + playerName);
                 }
             }
-            updateRoomState();
-        } else if (joiningRoomId.equals(currentRoomId) || currentRoomId.isEmpty()) {
-            // Someone else joined my room, OR I'm learning about existing players
-            if (currentRoomId.isEmpty()) {
-                currentRoomId = joiningRoomId;
-            }
-
-            if (!roomPlayers.contains(playerName)) {
-                roomPlayers.add(playerName);
-                updateRoomState();
-            }
         }
+
+        System.out.println("DEBUG: Current room players: " + roomPlayers);
+        updateRoomState();
     }
 
     private void handleRoomLeft(ProtocolMessage message) {
