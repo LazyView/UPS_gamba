@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(UPS_Chlad main.cpp
         server/include/core/server_config.h
+        server/src/core/ServerConfig.cpp
         server/src/main.cpp
         server/src/core/PlayerManager.cpp
         server/include/core/PlayerManager.h
@@ -34,3 +35,6 @@ add_executable(UPS_Chlad main.cpp
         server/include/protocol/ProtocolHelper.h
         server/include/protocol/ProtocolMessage.h
 )
+
+# Add include directories
+target_include_directories(UPS_Chlad PRIVATE server/include)

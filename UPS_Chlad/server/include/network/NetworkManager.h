@@ -5,11 +5,15 @@
 #ifndef NETWORKMANAGER_H
 #define NETWORKMANAGER_H
 
-// TODO: Add necessary includes
-// - Socket headers (sys/socket.h, netinet/in.h, arpa/inet.h, unistd.h)
-// - Threading (thread, atomic)
-// - String for IP address
-// - Forward declarations for your managers
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <thread>
+#include <atomic>
+#include <string>
+#include <condition_variable>
+#include <mutex>
 
 // Forward declarations
 class PlayerManager;
@@ -17,33 +21,50 @@ class RoomManager;
 class MessageHandler;
 class MessageValidator;
 class Logger;
+struct ServerConfig;
 
 class NetworkManager {
 private:
-    // TODO: Add private members
-    // - int server_socket;
-    // - std::atomic<bool> running;
-    // - std::string server_ip;
-    // - int server_port;
-    // - Pointers to managers (PlayerManager*, RoomManager*, etc.)
+    int server_socket;
+    std::atomic<bool> running;
+    std::string server_ip;
+    int server_port;
+
+    // Manager pointers:
+    PlayerManager* playerManager;
+    RoomManager* roomManager;
+    MessageHandler* messageHandler;
+    MessageValidator* validator;
+    Logger* logger;
+    const ServerConfig* config;
+
+    // Heartbeat monitoring
+    std::thread heartbeat_monitor_thread;
+    std::atomic<bool> heartbeat_running;
+    std::condition_variable heartbeat_cv;
+    std::mutex heartbeat_mutex;
 
 public:
-    // TODO: Constructor - takes managers as parameters
-    NetworkManager(/* parameters for managers, ip, port */);
+	NetworkManager(PlayerManager* pm, RoomManager* rm, MessageHandler* mh,
+               MessageValidator* mv, Logger* lg, const ServerConfig* cfg,
+               const std::string& ip, int port);
 
-    // TODO: Destructor
     ~NetworkManager();
 
-    // TODO: Main server methods
     bool start();        // Create and bind socket
     void run();          // Main accept loop
     void stop();         // Stop server gracefully
 
 private:
-    // TODO: Helper methods
+
     bool setupSocket();                    // Create, bind, listen
     void handleClient(int client_socket);  // Process one client
     void cleanup();                        // Clean shutdown
+
+    // Heartbeat monitoring
+    void startHeartbeatMonitor();          // Start heartbeat monitoring thread
+    void stopHeartbeatMonitor();           // Stop heartbeat monitoring thread
+    void heartbeatMonitorLoop();           // Main heartbeat monitoring loop
 };
 
 #endif //NETWORKMANAGER_H

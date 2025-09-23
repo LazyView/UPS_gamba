@@ -12,6 +12,7 @@
 #include <cstddef>  // for size_t
 #include "Room.h"
 #include "PlayerManager.h"
+#include "../game/CardDeck.h"
 
 class RoomManager {
 private:
@@ -38,6 +39,13 @@ public:
     bool startGame(const std::string& room_id);
     bool playCards(const std::string& player_name, const std::vector<std::string>& cards);
     bool pickupPile(const std::string& player_name);
+
+    // Player timeout handling
+    void handlePlayerTimeout(const std::string& player_name);
+
+private:
+    // Helper function to parse card strings (e.g., "AH" -> Ace of Hearts)
+    Card parseCardFromString(const std::string& cardStr);
 };
 
 

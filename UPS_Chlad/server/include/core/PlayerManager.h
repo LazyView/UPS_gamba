@@ -46,6 +46,10 @@ public:
     void markPlayerDisconnected(const std::string& player_name);
     void markReconnected(const std::string& player_name);
 
+    // Timeout checking
+    std::vector<std::string> getTimedOutPlayers(int timeout_seconds);
+    void cleanupTimedOutPlayers(int timeout_seconds);
+
     // Utility
     std::vector<std::string> getAllPlayers();
     std::vector<std::string> getPlayersInRoom(const std::string& room_id);

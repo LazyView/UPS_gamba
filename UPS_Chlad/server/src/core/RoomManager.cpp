@@ -28,17 +28,26 @@ bool RoomManager::joinRoom(const std::string& player_id, const std::string& room
     if (room_it == rooms.end()) {
         return false;  // Room doesn't exist
     }
+
+    Room& room = room_it->second;
+
     // Check if room is full
-    if (room_it->second.players.size() >= 2) {
+    if (room.players.size() >= 2) {
         return false;
     }
+
     // Check if player already in room
-    if(std::find(room_it->second.players.begin(), room_it->second.players.end(), player_id) != room_it->second.players.end()) {
+    if(std::find(room.players.begin(), room.players.end(), player_id) != room.players.end()) {
         return false;
     }
-    room_it->second.players.push_back(player_id);
-    playerManager->setPlayerRoom(player_id, room_id);
-    return true;
+
+    // Use the Room's integrated game logic to add player
+    if (room.addPlayerToGame(player_id)) {
+        playerManager->setPlayerRoom(player_id, room_id);
+        return true;
+    }
+
+    return false;
 }
 
 bool RoomManager::isRoomFull(const std::string& room_id) {
@@ -122,18 +131,15 @@ bool RoomManager::startGame(const std::string& room_id) {
         return false;  // Room not found
     }
 
-    auto& room = room_it->second;
+    Room& room = room_it->second;
 
     // Check if can start game
-    if (room.players.size() != 2) {
-        return false;  // Need exactly 2 players
+    if (room.players.size() < 2) {
+        return false;  // Need at least 2 players
     }
 
-    // TODO: Initialize game when we implement GameLogic/CardDeck
-    // room.game_state.dealCards();
-    // room.game_state.phase = GamePhase::PLAYING;
-
-    return true;  // For now, just return success
+    // Use the Room's integrated game logic
+    return room.startGame();
 }
 
 bool RoomManager::playCards(const std::string& player_name, const std::vector<std::string>& cards) {
@@ -147,11 +153,21 @@ bool RoomManager::playCards(const std::string& player_name, const std::vector<st
     auto room_it = rooms.find(room_id);
     if (room_it == rooms.end()) return false;
 
-    // TODO: Call existing game logic when implemented
-    // auto result = room_it->second.game_state.playCards(player_name, cards);
-    // return result == GambaGameState::PlayResult::SUCCESS;
+    Room& room = room_it->second;
 
-    return true;  // For now, just return success
+    // Convert string cards to Card objects
+    std::vector<Card> cardObjects;
+    for (const std::string& cardStr : cards) {
+        Card card = parseCardFromString(cardStr);
+        if (card.rank == Rank::ACE && card.suit == Suit::HEARTS && cardStr != "AH") {
+            // Invalid card string - parseCardFromString returns AH for invalid cards
+            return false;
+        }
+        cardObjects.push_back(card);
+    }
+
+    // Use game logic to play cards
+    return room.gameLogic->playCards(player_name, cardObjects);
 }
 
 bool RoomManager::pickupPile(const std::string& player_name) {
@@ -163,8 +179,96 @@ bool RoomManager::pickupPile(const std::string& player_name) {
     auto room_it = rooms.find(room_id);
     if (room_it == rooms.end()) return false;
 
-    // TODO: pickupPile returns bool directly when implemented
-    // return room_it->second.game_state.pickupPile(player_name);
+    Room& room = room_it->second;
 
-    return true;  // For now, just return success
+    // Use game logic to pickup discard pile
+    return room.gameLogic->pickupDiscardPile(player_name);
+}
+
+Card RoomManager::parseCardFromString(const std::string& cardStr) {
+    if (cardStr.length() < 2) {
+        // Invalid card string, return default (Ace of Hearts)
+        return Card(Suit::HEARTS, Rank::ACE);
+    }
+
+    // Parse rank (first character(s))
+    Rank rank;
+    char rankChar = cardStr[0];
+    switch (rankChar) {
+        case 'A': rank = Rank::ACE; break;
+        case '2': rank = Rank::TWO; break;
+        case '3': rank = Rank::THREE; break;
+        case '4': rank = Rank::FOUR; break;
+        case '5': rank = Rank::FIVE; break;
+        case '6': rank = Rank::SIX; break;
+        case '7': rank = Rank::SEVEN; break;
+        case '8': rank = Rank::EIGHT; break;
+        case '9': rank = Rank::NINE; break;
+        case '1': // 10 is represented as "10X"
+            if (cardStr.length() >= 3 && cardStr[1] == '0') {
+                rank = Rank::TEN;
+            } else {
+                return Card(Suit::HEARTS, Rank::ACE); // Invalid
+            }
+            break;
+        case 'J': rank = Rank::JACK; break;
+        case 'Q': rank = Rank::QUEEN; break;
+        case 'K': rank = Rank::KING; break;
+        default:
+            return Card(Suit::HEARTS, Rank::ACE); // Invalid
+    }
+
+    // Parse suit (last character)
+    char suitChar = cardStr.back();
+    Suit suit;
+    switch (suitChar) {
+        case 'H': suit = Suit::HEARTS; break;
+        case 'D': suit = Suit::DIAMONDS; break;
+        case 'C': suit = Suit::CLUBS; break;
+        case 'S': suit = Suit::SPADES; break;
+        default:
+            return Card(Suit::HEARTS, Rank::ACE); // Invalid
+    }
+
+    return Card(suit, rank);
+}
+
+void RoomManager::handlePlayerTimeout(const std::string& player_name) {
+    // Get player's room before removing them
+    std::string room_id;
+    if (playerManager) {
+        room_id = playerManager->getPlayerRoom(player_name);
+    }
+
+    // If player was in a room, handle the timeout in that room
+    if (!room_id.empty() && room_id != "lobby") {
+        std::lock_guard<std::mutex> lock(rooms_mutex);
+        auto room_it = rooms.find(room_id);
+
+        if (room_it != rooms.end()) {
+            Room& room = room_it->second;
+
+            // Remove player from room
+            auto it = std::find(room.players.begin(), room.players.end(), player_name);
+            if (it != room.players.end()) {
+                room.players.erase(it);
+
+                // If room becomes empty, mark it for cleanup
+                if (room.players.empty()) {
+                    rooms.erase(room_it);
+                } else {
+                    // If game was in progress and only one player remains, reset the game
+                    if (room.isGameActive() && room.players.size() == 1) {
+                        room.resetGame();
+                        // The remaining player should be returned to waiting state
+                    }
+                }
+            }
+        }
+
+        // Clear player's room in PlayerManager
+        if (playerManager) {
+            playerManager->clearPlayerRoom(player_name);
+        }
+    }
 }
