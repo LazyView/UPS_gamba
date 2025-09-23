@@ -12,6 +12,9 @@ _deps
 CMakeUserPresets.json
 UPS_Chlad/server/build/
 UPS_Chlad/.idea
+UPS_Chlad/.claude
+.claude
+UPS_Chlad/ups_project
 
 # CLion
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
