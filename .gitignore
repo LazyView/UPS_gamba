@@ -15,6 +15,10 @@ UPS_Chlad/.idea
 UPS_Chlad/.claude
 .claude
 UPS_Chlad/ups_project
+UPS_Chlad/server/.idea
+.idea
+UPS_Chlad/server/test_disconnect.py
+UPS_Chlad/server/logs
 
 # CLion
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
