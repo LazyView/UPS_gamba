@@ -75,8 +75,6 @@ void NetworkManager::run() {
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
 
-    std::vector<std::thread> client_threads;
-
     while (running.load()) {
         // Accept new client connection
         int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
@@ -93,10 +91,10 @@ void NetworkManager::run() {
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
         logger->info("New client connected from " + std::string(client_ip) + ":" + std::to_string(ntohs(client_addr.sin_port)) + " (socket: " + std::to_string(client_socket) + ")");
 
-        // Create new thread to handle client
+        // NEW - just create and detach directly:
         try {
-            client_threads.emplace_back(&NetworkManager::handleClient, this, client_socket);
-            client_threads.back().detach(); // Detach thread for independent execution
+            std::thread client_handler(&NetworkManager::handleClient, this, client_socket);
+            client_handler.detach(); // Detach for independent execution
         } catch (const std::exception& e) {
             logger->error("Failed to create thread for client " + std::to_string(client_socket) + ": " + e.what());
             close(client_socket);
