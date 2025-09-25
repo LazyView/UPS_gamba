@@ -16,6 +16,7 @@
 #include <mutex>
 
 // Forward declarations
+class ProtocolMessage;
 class PlayerManager;
 class RoomManager;
 class MessageHandler;
@@ -54,6 +55,7 @@ public:
     bool start();        // Create and bind socket
     void run();          // Main accept loop
     void stop();         // Stop server gracefully
+    void broadcastToRoom(const std::string& room_id, const ProtocolMessage& message, const std::string& exclude_player = "");
 
 private:
 

@@ -242,6 +242,32 @@ void NetworkManager::handleClient(int client_socket) {
                         logger->debug("Sending response: '" + response_str + "'"); // ADD THIS
 
                         ssize_t bytes_sent = send(client_socket, response_str.c_str(), response_str.length(), MSG_NOSIGNAL);
+                        logger->debug("Sent response to client " + std::to_string(client_socket) + ": " + response.serialize());
+
+                        // ADD THIS NEW BROADCAST CHECK:
+                        if (response.should_broadcast_to_room) {
+                            logger->debug("Response flagged for broadcasting");
+
+                            // Get player info from socket
+                            std::string player_name = playerManager->getPlayerIdFromSocket(client_socket);
+                            if (!player_name.empty()) {
+                                std::string room_id = playerManager->getPlayerRoom(player_name);
+                                if (!room_id.empty()) {
+                                    logger->debug("Broadcasting to room " + room_id + " for player " + player_name);
+
+                                    // Create broadcast message (you can customize this message)
+                                    ProtocolMessage broadcast_msg = response;
+                                    broadcast_msg.setData("broadcast_type", "room_notification");
+
+                                    // Broadcast to room (exclude the sender)
+                                    broadcastToRoom(room_id, broadcast_msg, player_name);
+                                } else {
+                                    logger->debug("Player " + player_name + " not in any room, skipping broadcast");
+                                }
+                            } else {
+                                logger->warning("No player found for socket " + std::to_string(client_socket) + ", cannot broadcast");
+                            }
+                        }
 
                         if (bytes_sent < 0) {
                             logger->error("Failed to send response to client " + std::to_string(client_socket) + ": " + std::string(strerror(errno)));
@@ -280,7 +306,19 @@ void NetworkManager::handleClient(int client_socket) {
     // Get player name before removing socket mapping
     std::string disconnected_player = playerManager->getPlayerIdFromSocket(client_socket);
     if (!disconnected_player.empty()) {
+        // Get room before marking disconnected
+        std::string room_id = playerManager->getPlayerRoom(disconnected_player);
         playerManager->markPlayerTemporarilyDisconnected(disconnected_player);
+        // ADD: Broadcast disconnection to room
+        if (!room_id.empty()) {
+            ProtocolMessage disconnect_broadcast(MessageType::PLAYER_DISCONNECTED);
+            disconnect_broadcast.player_id = disconnected_player;
+            disconnect_broadcast.room_id = room_id;
+            disconnect_broadcast.setData("disconnected_player", disconnected_player);
+            disconnect_broadcast.setData("status", "temporarily_disconnected");
+
+            broadcastToRoom(room_id, disconnect_broadcast, disconnected_player);
+        }
     } else {
         logger->debug("No player found for disconnected socket " + std::to_string(client_socket));
     }
@@ -360,7 +398,21 @@ void NetworkManager::heartbeatMonitorLoop() {
             // Handle ping timeouts (mark as temporarily disconnected)
             for (const std::string& player_name : timed_out_players) {
                 logger->info("Player '" + player_name + "' timed out - marking as temporarily disconnected");
+                // Get room before marking disconnected
+                std::string room_id = playerManager->getPlayerRoom(player_name);
+
                 playerManager->markPlayerTemporarilyDisconnected(player_name);
+
+                // ADD: Broadcast timeout to room
+                if (!room_id.empty()) {
+                    ProtocolMessage timeout_broadcast(MessageType::PLAYER_DISCONNECTED);
+                    timeout_broadcast.player_id = player_name;
+                    timeout_broadcast.room_id = room_id;
+                    timeout_broadcast.setData("disconnected_player", player_name);
+                    timeout_broadcast.setData("status", "timed_out");
+
+                    broadcastToRoom(room_id, timeout_broadcast, player_name);
+                }
             }
 
             // Handle reconnection window expiry (complete cleanup)
@@ -392,4 +444,57 @@ void NetworkManager::heartbeatMonitorLoop() {
     }
 
     logger->debug("Heartbeat monitor thread stopped");
+}
+
+void NetworkManager::broadcastToRoom(const std::string& room_id, const ProtocolMessage& message, const std::string& exclude_player) {
+    if (!running.load()) {
+        logger->warning("Cannot broadcast - server not running");
+        return;
+    }
+
+    // Get all players in the room
+    std::vector<std::string> room_players = playerManager->getPlayersInRoom(room_id);
+
+    if (room_players.empty()) {
+        logger->debug("No players to broadcast to in room " + room_id);
+        return;
+    }
+
+    std::string broadcast_msg = message.serialize() + "\n";
+    int successful_sends = 0;
+    int failed_sends = 0;
+
+    logger->debug("Broadcasting message type " + std::to_string(static_cast<int>(message.getType())) + " to room " + room_id);
+
+    for (const std::string& player_name : room_players) {
+        // Skip excluded player (e.g., don't broadcast join message to the player who just joined)
+        if (player_name == exclude_player) {
+            continue;
+        }
+
+        // Get player info
+        auto player_opt = playerManager->getPlayer(player_name);
+        if (!player_opt.has_value() || !player_opt->connected || player_opt->socket_fd == -1) {
+            logger->debug("Skipping broadcast to disconnected player: " + player_name);
+            continue;
+        }
+
+        int socket_fd = player_opt->socket_fd;
+
+        // Send message to this player
+        ssize_t bytes_sent = send(socket_fd, broadcast_msg.c_str(), broadcast_msg.length(), MSG_NOSIGNAL);
+
+        if (bytes_sent < 0) {
+            logger->warning("Failed to broadcast to player '" + player_name + "' on socket " + std::to_string(socket_fd) + ": " + std::string(strerror(errno)));
+            failed_sends++;
+        } else if (static_cast<size_t>(bytes_sent) != broadcast_msg.length()) {
+            logger->warning("Partial broadcast to player '" + player_name + "': sent " + std::to_string(bytes_sent) + "/" + std::to_string(broadcast_msg.length()) + " bytes");
+            failed_sends++;
+        } else {
+            logger->debug("Broadcast sent to player '" + player_name + "' on socket " + std::to_string(socket_fd));
+            successful_sends++;
+        }
+    }
+
+    logger->info("Broadcast to room " + room_id + " complete: " + std::to_string(successful_sends) + " successful, " + std::to_string(failed_sends) + " failed");
 }

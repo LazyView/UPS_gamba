@@ -13,6 +13,7 @@ struct ProtocolMessage {
     std::string player_id;
     std::string room_id;
     std::map<std::string, std::string> data;
+    bool should_broadcast_to_room = false;
 
     // Constructors
     ProtocolMessage();

@@ -113,18 +113,17 @@ ProtocolMessage MessageHandler::handleConnect(const ProtocolMessage& msg, int cl
 }
 
 ProtocolMessage MessageHandler::handleJoinRoom(const std::string& player_name) {
-    // Try to join any available room
-    logger->debug("handleJoinRoom: called for player '" + player_name + "'"); // ADD THIS
+    logger->debug("handleJoinRoom: called for player '" + player_name + "'");
     std::string assigned_room = roomManager->joinAnyAvailableRoom(player_name);
-    logger->debug("handleJoinRoom: calling joinAnyAvailableRoom completed"); // ADD THIS
-    // 4. Return response
+
     if (!assigned_room.empty()) {
-        logger->debug("handleJoinRoom: room assigned successfully"); // ADD THIS
-        // Success - result contains the player name
-        return ProtocolHelper::createRoomJoinedResponse(player_name, assigned_room);
+        logger->debug("handleJoinRoom: room assigned successfully");
+
+        ProtocolMessage response = ProtocolHelper::createRoomJoinedResponse(player_name, assigned_room);
+        response.should_broadcast_to_room = true;  // SET BROADCAST FLAG
+        return response;
     } else {
-        logger->debug("handleJoinRoom: room not assigned"); // ADD THIS
-        // Failed - player name already taken or other error
+        logger->debug("handleJoinRoom: room not assigned");
         return ProtocolHelper::createErrorResponse("Error occurred while joining room");
     }
 }
@@ -140,8 +139,9 @@ ProtocolMessage MessageHandler::handleReconnect(const ProtocolMessage& msg, int 
     if (playerManager->reconnectPlayer(player_name, client_socket)) {
         logger->info("Player '" + player_name + "' reconnected successfully");
 
-        // TODO: Later we'll add game state synchronization here
-        return ProtocolHelper::createConnectedResponse(player_name, player_name);
+        ProtocolMessage response = ProtocolHelper::createConnectedResponse(player_name, player_name);
+        response.should_broadcast_to_room = true;  // SET BROADCAST FLAG FOR RECONNECTION
+        return response;
     } else {
         logger->warning("Reconnection failed for player '" + player_name + "' - not found or not disconnected");
         return ProtocolHelper::createErrorResponse("Reconnection failed - player not found or session expired");
@@ -152,7 +152,9 @@ ProtocolMessage MessageHandler::handleLeaveRoom(const std::string& player_name) 
     bool result = roomManager->leaveRoom(player_name);
 
     if (result) {
-        return ProtocolHelper::createRoomLeftResponse(player_name);
+        ProtocolMessage response = ProtocolHelper::createRoomLeftResponse(player_name);
+        response.should_broadcast_to_room = true;  // ADD THIS - notify others player left
+        return response;
     } else {
         return ProtocolHelper::createErrorResponse("Leave room failed");
     }
@@ -168,7 +170,9 @@ ProtocolMessage MessageHandler::handleStartGame(const std::string& player_name) 
     bool result = roomManager->startGame(room_id);
 
     if (result) {
-        return ProtocolHelper::createGameStartedResponse();  // Simple response
+        ProtocolMessage response = ProtocolHelper::createGameStartedResponse();
+        response.should_broadcast_to_room = true;  // ADD THIS - notify all players game started
+        return response;
     } else {
         return ProtocolHelper::createErrorResponse("Cannot start game");
     }
@@ -178,7 +182,9 @@ ProtocolMessage MessageHandler::handlePickupPile(const std::string& player_name)
     bool result = roomManager->pickupPile(player_name);
 
     if (result) {
-        return ProtocolHelper::createTurnResultResponse("pickup_success");
+        ProtocolMessage response = ProtocolHelper::createTurnResultResponse("pickup_success");
+        response.should_broadcast_to_room = true;  // ADD THIS - notify others of pile pickup
+        return response;
     } else {
         return ProtocolHelper::createErrorResponse("Cannot pickup pile");
     }
@@ -204,7 +210,9 @@ ProtocolMessage MessageHandler::handlePlayCards(const ProtocolMessage& msg, cons
     bool result = roomManager->playCards(player_name, cards);
 
     if (result) {
-        return ProtocolHelper::createTurnResultResponse("play_success");
+        ProtocolMessage response = ProtocolHelper::createTurnResultResponse("play_success");
+        response.should_broadcast_to_room = true;  // ADD THIS - notify others of card play
+        return response;
     } else {
         return ProtocolHelper::createErrorResponse("Invalid card play");
     }
