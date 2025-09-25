@@ -88,32 +88,6 @@ std::optional<Player> PlayerManager::getPlayer(const std::string& player_name) {
     return std::nullopt;  // Not found
 }
 
-void PlayerManager::removePlayerBySocket(int client_socket) {
-    std::lock_guard<std::mutex> lock(players_mutex);
-
-    // Find player name from socket
-    auto socket_it = socket_to_player.find(client_socket);
-    if (socket_it != socket_to_player.end()) {
-        std::string player_name = socket_it->second;
-
-        // Remove from socket mapping
-        socket_to_player.erase(socket_it);
-
-        // Find and remove player
-        auto player_it = players.find(player_name);
-        if (player_it != players.end()) {
-            // Remove player completely
-            players.erase(player_it);
-
-            // Clean up heartbeat data
-            {
-                std::lock_guard<std::mutex> hb_lock(heartbeat_mutex);
-                player_last_ping.erase(player_name);
-            }
-        }
-    }
-}
-
 void PlayerManager::markPlayerDisconnected(const std::string& player_name) {
     std::lock_guard<std::mutex> lock(players_mutex);
 
@@ -257,4 +231,80 @@ void PlayerManager::cleanupTimedOutPlayers(int timeout_seconds) {
     for (const std::string& player_name : timed_out_players) {
         markPlayerDisconnected(player_name);
     }
+}
+
+void PlayerManager::markPlayerTemporarilyDisconnected(const std::string& player_name) {
+    std::lock_guard<std::mutex> lock(players_mutex);
+
+    auto it = players.find(player_name);
+    if (it != players.end()) {
+        int socket_fd = it->second.socket_fd;
+
+        // Update player state for temporary disconnection
+        it->second.connected = false;
+        it->second.socket_fd = -1;
+        it->second.temporarily_disconnected = true;
+        it->second.disconnection_start = std::chrono::steady_clock::now();
+
+        // Remove from socket mapping
+        if (socket_fd != -1) {
+            socket_to_player.erase(socket_fd);
+        }
+    }
+}
+
+void PlayerManager::removeSocketMapping(int client_socket) {
+    std::lock_guard<std::mutex> lock(players_mutex);
+
+    auto it = socket_to_player.find(client_socket);
+    if (it != socket_to_player.end()) {
+        socket_to_player.erase(it);
+    }
+}
+
+bool PlayerManager::reconnectPlayer(const std::string& player_name, int new_socket) {
+    std::lock_guard<std::mutex> lock(players_mutex);
+
+    auto it = players.find(player_name);
+    if (it != players.end() && it->second.temporarily_disconnected) {
+        // Restore connection
+        it->second.connected = true;
+        it->second.socket_fd = new_socket;
+        it->second.temporarily_disconnected = false;
+        socket_to_player[new_socket] = player_name;
+
+        // Update heartbeat
+        updateLastPing(player_name);
+        return true;
+    }
+
+    return false; // Player not found or not in reconnection state
+}
+
+std::vector<std::pair<std::string, bool>> PlayerManager::getPlayersForHeartbeatCheck() {
+    std::lock_guard<std::mutex> lock(players_mutex);
+    std::vector<std::pair<std::string, bool>> result;
+
+    for (const auto& pair : players) {
+        result.emplace_back(pair.first, pair.second.connected);
+    }
+    return result;
+}
+
+std::vector<std::string> PlayerManager::getDisconnectedPlayersForCleanup(int cleanup_seconds) {
+    std::lock_guard<std::mutex> lock(players_mutex);
+    std::vector<std::string> cleanup_players;
+    auto now = std::chrono::steady_clock::now();
+    auto cleanup_timeout = std::chrono::seconds(cleanup_seconds);
+
+    for (const auto& pair : players) {
+        const Player& player = pair.second;
+        if (player.temporarily_disconnected) {
+            auto time_since_disconnect = now - player.disconnection_start;
+            if (time_since_disconnect > cleanup_timeout) {
+                cleanup_players.push_back(pair.first);
+            }
+        }
+    }
+    return cleanup_players;
 }

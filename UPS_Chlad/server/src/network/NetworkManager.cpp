@@ -181,6 +181,7 @@ bool NetworkManager::setupSocket() {
 
 void NetworkManager::handleClient(int client_socket) {
     const size_t BUFFER_SIZE = 4096;
+    const size_t MAX_MESSAGE_SIZE = 8192;
     char buffer[BUFFER_SIZE];
     std::string message_buffer;
 
@@ -206,6 +207,11 @@ void NetworkManager::handleClient(int client_socket) {
             buffer[bytes_received] = '\0';
             message_buffer += buffer;
 
+            // Protect against huge messages
+            if (message_buffer.size() > MAX_MESSAGE_SIZE) {
+                logger->warning("Message too large from client " + std::to_string(client_socket) + ", disconnecting");
+                break;
+            }
             logger->debug("Current message_buffer for socket " + std::to_string(client_socket) + ": '" + message_buffer + "'"); // ADD THIS
 
             // Process complete messages (assuming newline-delimited)
@@ -251,9 +257,8 @@ void NetworkManager::handleClient(int client_socket) {
                             logger->info("Disconnecting client " + std::to_string(client_socket) + " as requested");
                             // Immediately shutdown socket to prevent further communication
                             shutdown(client_socket, SHUT_RDWR);
-                            return; // Exit the entire handleClient function immediately
+                            break; // Exit the entire handleClient function immediately
                         }
-
                     } catch (const std::exception& e) {
                         logger->error("Error processing message from client " + std::to_string(client_socket) + ": " + e.what());
 
@@ -269,18 +274,21 @@ void NetworkManager::handleClient(int client_socket) {
     } catch (const std::exception& e) {
         logger->error("Exception in client handler for socket " + std::to_string(client_socket) + ": " + e.what());
     }
+    // CLEANUP CODE GOES HERE (after try-catch block):
+    logger->info("Client " + std::to_string(client_socket) + " disconnected, marking for reconnection window");
 
-    // Clean up client connection
-    logger->info("Cleaning up client " + std::to_string(client_socket));
-
-    // Remove player from manager if they were connected
-    try {
-        playerManager->removePlayerBySocket(client_socket);
-    } catch (const std::exception& e) {
-        logger->warning("Error removing player for socket " + std::to_string(client_socket) + ": " + e.what());
+    // Get player name before removing socket mapping
+    std::string disconnected_player = playerManager->getPlayerIdFromSocket(client_socket);
+    if (!disconnected_player.empty()) {
+        playerManager->markPlayerTemporarilyDisconnected(disconnected_player);
+    } else {
+        logger->debug("No player found for disconnected socket " + std::to_string(client_socket));
     }
 
-    // Close socket
+    // Only remove socket mapping, don't delete player completely
+    playerManager->removeSocketMapping(client_socket);
+
+    // Close the socket
     if (close(client_socket) < 0) {
         logger->warning("Error closing client socket " + std::to_string(client_socket) + ": " + std::string(strerror(errno)));
     }
@@ -343,29 +351,34 @@ void NetworkManager::heartbeatMonitorLoop() {
 
     while (heartbeat_running.load()) {
         try {
-            // Get list of timed out players
+            // Get timed out players (normal ping timeout)
             std::vector<std::string> timed_out_players = playerManager->getTimedOutPlayers(config->player_timeout_seconds);
 
-            // Process each timed out player
+            // Get players who need cleanup (2-minute reconnection window expired)
+            std::vector<std::string> cleanup_players = playerManager->getDisconnectedPlayersForCleanup(120);
+
+            // Handle ping timeouts (mark as temporarily disconnected)
             for (const std::string& player_name : timed_out_players) {
-                logger->info("Player '" + player_name + "' timed out - marking as disconnected");
-
-                // Get player's room before disconnecting
-                std::string room_id = playerManager->getPlayerRoom(player_name);
-
-                // Handle timeout in room context (remove from room, handle game state)
-                roomManager->handlePlayerTimeout(player_name);
-
-                // Mark player as disconnected
-                playerManager->markPlayerDisconnected(player_name);
-
-                if (!room_id.empty() && room_id != "lobby") {
-                    logger->info("Player '" + player_name + "' was removed from room '" + room_id + "' due to timeout");
-                }
+                logger->info("Player '" + player_name + "' timed out - marking as temporarily disconnected");
+                playerManager->markPlayerTemporarilyDisconnected(player_name);
             }
 
-            if (!timed_out_players.empty()) {
-                logger->info("Processed " + std::to_string(timed_out_players.size()) + " timed out players");
+            // Handle reconnection window expiry (complete cleanup)
+            for (const std::string& player_name : cleanup_players) {
+                logger->info("Player '" + player_name + "' reconnection window expired - cleaning up");
+
+                // Get player's room for game cleanup
+                std::string room_id = playerManager->getPlayerRoom(player_name);
+                if (!room_id.empty()) {
+                    roomManager->handlePlayerTimeout(player_name);
+                }
+
+                // Complete removal
+                playerManager->removePlayer(player_name);
+            }
+
+            if (!timed_out_players.empty() || !cleanup_players.empty()) {
+                logger->info("Processed " + std::to_string(timed_out_players.size()) + " timeouts and " + std::to_string(cleanup_players.size()) + " cleanups");
             }
 
         } catch (const std::exception& e) {
@@ -373,7 +386,6 @@ void NetworkManager::heartbeatMonitorLoop() {
         }
 
         // Use condition variable with timeout instead of blocking sleep
-        // This allows immediate wake-up during shutdown
         std::unique_lock<std::mutex> lock(heartbeat_mutex);
         heartbeat_cv.wait_for(lock, std::chrono::seconds(config->heartbeat_check_interval),
                               [this] { return !heartbeat_running.load(); });

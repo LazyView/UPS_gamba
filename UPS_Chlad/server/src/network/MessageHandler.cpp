@@ -17,6 +17,7 @@ MessageHandler::MessageHandler(PlayerManager* pm, RoomManager* rm, MessageValida
 
 ProtocolMessage MessageHandler::processMessage(const std::string& raw_message, int client_socket) {
     if (!validator->isValidFormat(raw_message)) {
+        logger->warning("Invalid message format from socket " + std::to_string(client_socket) + ": '" + raw_message + "'");
         ProtocolMessage disconnect_response(MessageType::ERROR_MSG);
         disconnect_response.setData("disconnect", "true");
         return disconnect_response;
@@ -25,7 +26,7 @@ ProtocolMessage MessageHandler::processMessage(const std::string& raw_message, i
     ProtocolMessage msg = ProtocolMessage::parse(raw_message);
     logger->debug("Parsed message type: " + std::to_string(static_cast<int>(msg.getType()))); // ADD THIS
     if (!validator->isValidMessageType(static_cast<int>(msg.getType()))) {
-        logger->debug("Invalid message type detected"); // ADD THIS
+        logger->warning("Invalid message type " + std::to_string(static_cast<int>(msg.getType())) + " from socket " + std::to_string(client_socket));
         ProtocolMessage disconnect_response(MessageType::ERROR_MSG);
         disconnect_response.setData("disconnect", "true");
         return disconnect_response;
@@ -134,12 +135,16 @@ ProtocolMessage MessageHandler::handleReconnect(const ProtocolMessage& msg, int 
     if (player_name.empty()) {
         return ProtocolHelper::createErrorResponse("Player name required");
     }
-    std::string result = playerManager->connectPlayer(player_name, client_socket);
 
-    if (result.empty()) {
-        return ProtocolHelper::createErrorResponse("Reconnection failed");
+    // Try to reconnect existing temporarily disconnected player
+    if (playerManager->reconnectPlayer(player_name, client_socket)) {
+        logger->info("Player '" + player_name + "' reconnected successfully");
+
+        // TODO: Later we'll add game state synchronization here
+        return ProtocolHelper::createConnectedResponse(player_name, player_name);
     } else {
-        return ProtocolHelper::createConnectedResponse(result, player_name);
+        logger->warning("Reconnection failed for player '" + player_name + "' - not found or not disconnected");
+        return ProtocolHelper::createErrorResponse("Reconnection failed - player not found or session expired");
     }
 }
 

@@ -24,12 +24,16 @@ public:
     // Player lifecycle
     std::string connectPlayer(const std::string& player_name, int client_socket);
     void removePlayer(const std::string& player_name);
-    void removePlayerBySocket(int client_socket);
+    void markPlayerTemporarilyDisconnected(const std::string& player_name);
+    void removeSocketMapping(int client_socket);
+    bool reconnectPlayer(const std::string& player_name, int new_socket);
 
     // Player lookup
     std::string getPlayerIdFromSocket(int client_socket);
     std::optional<Player> getPlayer(const std::string& player_name);
     bool playerExists(const std::string& player_name);
+    std::vector<std::pair<std::string, bool>> getPlayersForHeartbeatCheck();
+    std::vector<std::string> getDisconnectedPlayersForCleanup(int cleanup_seconds);
 
     // Connection management
     void updatePlayerConnection(const std::string& player_name, bool connected);
