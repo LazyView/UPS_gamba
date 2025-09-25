@@ -115,11 +115,13 @@ void NetworkManager::stop() {
     logger->info("Stopping NetworkManager...");
     running.store(false);
 
-    // Stop heartbeat monitoring
+    // Stop heartbeat monitoring first
     stopHeartbeatMonitor();
 
-    // Close server socket to break accept() loop
+    // Close server socket to break accept() loop - ADD THIS
     if (server_socket >= 0) {
+        logger->debug("Closing server socket to break accept loop");
+        shutdown(server_socket, SHUT_RDWR);  // Shutdown socket
         close(server_socket);
         server_socket = -1;
     }
@@ -191,6 +193,8 @@ void NetworkManager::handleClient(int client_socket) {
             // Receive data from client
             ssize_t bytes_received = recv(client_socket, buffer, BUFFER_SIZE - 1, 0);
 
+            logger->debug("recv() returned: " + std::to_string(bytes_received) + " bytes for socket " + std::to_string(client_socket)); // ADD THIS
+
             if (bytes_received <= 0) {
                 if (bytes_received == 0) {
                     logger->info("Client " + std::to_string(client_socket) + " disconnected gracefully");
@@ -204,6 +208,8 @@ void NetworkManager::handleClient(int client_socket) {
             buffer[bytes_received] = '\0';
             message_buffer += buffer;
 
+            logger->debug("Current message_buffer for socket " + std::to_string(client_socket) + ": '" + message_buffer + "'"); // ADD THIS
+
             // Process complete messages (assuming newline-delimited)
             size_t pos = 0;
             while ((pos = message_buffer.find('\n')) != std::string::npos) {
@@ -215,6 +221,8 @@ void NetworkManager::handleClient(int client_socket) {
                     complete_message.pop_back();
                 }
 
+                logger->debug("Processing complete message: '" + complete_message + "'"); // ADD THIS
+
                 if (!complete_message.empty()) {
                     logger->debug("Received message from client " + std::to_string(client_socket) + ": " + complete_message);
 
@@ -222,8 +230,13 @@ void NetworkManager::handleClient(int client_socket) {
                     try {
                         ProtocolMessage response = messageHandler->processMessage(complete_message, client_socket);
 
+                        logger->debug("MessageHandler returned response type: " + std::to_string(static_cast<int>(response.getType()))); // ADD THIS
+
                         // Send response back to client
                         std::string response_str = response.serialize() + "\n";
+
+                        logger->debug("Sending response: '" + response_str + "'"); // ADD THIS
+
                         ssize_t bytes_sent = send(client_socket, response_str.c_str(), response_str.length(), MSG_NOSIGNAL);
 
                         if (bytes_sent < 0) {

@@ -7,9 +7,9 @@
 #include <algorithm>  // for std::find, std::remove
 #include <vector>
 #include <string>
+#include <iostream>
 
 std::string RoomManager::createRoom() {
-    std::lock_guard<std::mutex> lock(rooms_mutex);
     std::string room_name = "ROOM_" + std::to_string(next_room_id);
     rooms[room_name] = Room(room_name);
     next_room_id++;
@@ -22,9 +22,7 @@ bool RoomManager::roomExists(const std::string& room_id) {
 }
 
 bool RoomManager::joinRoom(const std::string& player_id, const std::string& room_id) {
-    std::lock_guard<std::mutex> lock(rooms_mutex);
     auto room_it = rooms.find(room_id);
-
     if (room_it == rooms.end()) {
         return false;  // Room doesn't exist
     }
@@ -32,22 +30,22 @@ bool RoomManager::joinRoom(const std::string& player_id, const std::string& room
     Room& room = room_it->second;
 
     // Check if room is full
-    if (room.players.size() >= 2) {
+    if (room.players.size() >= 2) {  // ← Should be 1 player (Alice), so this should pass
         return false;
     }
 
     // Check if player already in room
     if(std::find(room.players.begin(), room.players.end(), player_id) != room.players.end()) {
-        return false;
+        return false;  // ← Bob isn't in the room yet, so this should pass
     }
 
     // Use the Room's integrated game logic to add player
-    if (room.addPlayerToGame(player_id)) {
+    if (room.addPlayerToGame(player_id)) {  // ← MIGHT BE FAILING HERE!
         playerManager->setPlayerRoom(player_id, room_id);
         return true;
     }
 
-    return false;
+    return false;  // ← IF addPlayerToGame() FAILS, RETURNS FALSE
 }
 
 bool RoomManager::isRoomFull(const std::string& room_id) {

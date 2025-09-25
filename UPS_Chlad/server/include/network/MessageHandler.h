@@ -12,16 +12,17 @@
 class PlayerManager;
 class RoomManager;
 class MessageValidator;
+class Logger;
 
 class MessageHandler {
 private:
     PlayerManager* playerManager;
     RoomManager* roomManager;
     MessageValidator* validator;
+    Logger* logger;
 
 public:
-    MessageHandler(PlayerManager* pm, RoomManager* rm, MessageValidator* mv);
-
+    MessageHandler(PlayerManager* pm, RoomManager* rm, MessageValidator* mv, Logger* lg); // ADD Logger* lg
     // Main entry point
     ProtocolMessage processMessage(const std::string& raw_message, int client_socket);
 

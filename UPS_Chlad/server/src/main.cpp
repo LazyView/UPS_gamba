@@ -49,7 +49,7 @@ void testModularComponents() {
     std::cout << "ProtocolMessage test: " << (!serialized.empty() ? "SUCCESS" : "FAILED") << std::endl;
 
     // Test MessageHandler
-    MessageHandler messageHandler(&playerManager, &roomManager, &validator);
+    MessageHandler messageHandler(&playerManager, &roomManager, &validator, &logger); // ADD &logger
     std::cout << "MessageHandler test: SUCCESS (initialized)" << std::endl;
 
     std::cout << "=== All modular components initialized successfully ===" << std::endl;
@@ -92,11 +92,12 @@ int main(int argc, char* argv[]) {
     try {
         // Initialize all components
         Logger logger(config.log_file);
+        logger.setLogLevel(LogLevel::DEBUG);
         logger.setLogToFile(config.enable_file_logging);
         PlayerManager playerManager;
         RoomManager roomManager(&playerManager);
         MessageValidator validator;
-        MessageHandler messageHandler(&playerManager, &roomManager, &validator);
+        MessageHandler messageHandler(&playerManager, &roomManager, &validator, &logger); // ADD &logger
 
         // Initialize NetworkManager with heartbeat monitoring
         NetworkManager networkManager(&playerManager, &roomManager, &messageHandler,

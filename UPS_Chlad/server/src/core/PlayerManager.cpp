@@ -10,8 +10,6 @@ Player::Player(const std::string& player_name, int socket)
 }
 
 std::string PlayerManager::connectPlayer(const std::string& player_name, int client_socket) {
-    std::lock_guard<std::mutex> lock(players_mutex);
-
     auto it = players.find(player_name);
 
     if (it != players.end()) {
@@ -24,7 +22,6 @@ std::string PlayerManager::connectPlayer(const std::string& player_name, int cli
             socket_to_player[client_socket] = player_name;
             // Update heartbeat here for simplicity
             updateLastPing(player_name);
-
             return player_name;
         }
     } else {
@@ -74,14 +71,6 @@ void PlayerManager::removePlayer(const std::string& player_name) {
 }
 
 void PlayerManager::updateLastPing(const std::string& player_name) {
-    // Check player exists first
-    {
-        std::lock_guard<std::mutex> lock(players_mutex);
-        if (players.find(player_name) == players.end()) {
-            return; // Player doesn't exist
-        }
-    }
-
     // Update ping
     {
         std::lock_guard<std::mutex> lock(heartbeat_mutex);
