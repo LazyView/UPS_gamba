@@ -34,6 +34,8 @@ add_executable(UPS_Chlad main.cpp
         server/src/protocol/ProtocolHelper.cpp
         server/include/protocol/ProtocolHelper.h
         server/include/protocol/ProtocolMessage.h
+        server/src/core/GameManager.cpp
+        server/include/core/GameManager.h
 )
 
 # Add include directories

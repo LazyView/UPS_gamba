@@ -8,12 +8,13 @@
 #include "MessageValidator.h"
 #include "PlayerManager.h"
 #include "RoomManager.h"
+#include "GameManager.h"
 #include "Logger.h"
 #include <sstream>
 #include <vector>
 
-MessageHandler::MessageHandler(PlayerManager* pm, RoomManager* rm, MessageValidator* mv, Logger* lg)
-    : playerManager(pm), roomManager(rm), validator(mv), logger(lg) {}
+MessageHandler::MessageHandler(PlayerManager* pm, RoomManager* rm, MessageValidator* mv, Logger* lg, GameManager* gm)
+    : playerManager(pm), roomManager(rm), validator(mv), logger(lg), gameManager(gm) {}
 
 ProtocolMessage MessageHandler::processMessage(const std::string& raw_message, int client_socket) {
     if (!validator->isValidFormat(raw_message)) {
@@ -117,6 +118,7 @@ ProtocolMessage MessageHandler::handleJoinRoom(const std::string& player_name) {
     std::string assigned_room = roomManager->joinAnyAvailableRoom(player_name);
 
     if (!assigned_room.empty()) {
+        playerManager->setPlayerRoom(player_name, assigned_room);
         logger->debug("handleJoinRoom: room assigned successfully");
 
         ProtocolMessage response = ProtocolHelper::createRoomJoinedResponse(player_name, assigned_room);
@@ -149,9 +151,11 @@ ProtocolMessage MessageHandler::handleReconnect(const ProtocolMessage& msg, int 
 }
 
 ProtocolMessage MessageHandler::handleLeaveRoom(const std::string& player_name) {
-    bool result = roomManager->leaveRoom(player_name);
+    std::string room_id = playerManager->getPlayerRoom(player_name);
+    bool result = roomManager->leaveRoom(player_name, room_id);
 
     if (result) {
+        playerManager->clearPlayerRoom(player_name);
         ProtocolMessage response = ProtocolHelper::createRoomLeftResponse(player_name);
         response.should_broadcast_to_room = true;  // ADD THIS - notify others player left
         return response;
@@ -167,11 +171,12 @@ ProtocolMessage MessageHandler::handleStartGame(const std::string& player_name) 
         return ProtocolHelper::createErrorResponse("Not in any room");
     }
 
-    bool result = roomManager->startGame(room_id);
+    // Use GameManager instead of RoomManager
+    bool result = gameManager->startGame(roomManager, room_id);
 
     if (result) {
         ProtocolMessage response = ProtocolHelper::createGameStartedResponse();
-        response.should_broadcast_to_room = true;  // ADD THIS - notify all players game started
+        response.should_broadcast_to_room = true;
         return response;
     } else {
         return ProtocolHelper::createErrorResponse("Cannot start game");
@@ -179,11 +184,18 @@ ProtocolMessage MessageHandler::handleStartGame(const std::string& player_name) 
 }
 
 ProtocolMessage MessageHandler::handlePickupPile(const std::string& player_name) {
-    bool result = roomManager->pickupPile(player_name);
+    // Get player's room
+    std::string room_id = playerManager->getPlayerRoom(player_name);
+    if (room_id.empty()) {
+        return ProtocolHelper::createErrorResponse("Not in any room");
+    }
+
+    // Use GameManager instead of RoomManager
+    bool result = gameManager->pickupPile(roomManager, room_id, player_name);
 
     if (result) {
         ProtocolMessage response = ProtocolHelper::createTurnResultResponse("pickup_success");
-        response.should_broadcast_to_room = true;  // ADD THIS - notify others of pile pickup
+        response.should_broadcast_to_room = true;
         return response;
     } else {
         return ProtocolHelper::createErrorResponse("Cannot pickup pile");
@@ -191,27 +203,31 @@ ProtocolMessage MessageHandler::handlePickupPile(const std::string& player_name)
 }
 
 ProtocolMessage MessageHandler::handlePlayCards(const ProtocolMessage& msg, const std::string& player_name) {
-    // 1. Extract cards from message
     std::string cards_str = MessageParser::extractDataField(msg, "cards");
     if (cards_str.empty()) {
         return ProtocolHelper::createErrorResponse("No cards specified");
     }
 
-    // 2. Parse comma-separated cards
+    // Parse comma-separated cards
     std::vector<std::string> cards;
     std::stringstream ss(cards_str);
     std::string card;
-
     while (std::getline(ss, card, ',')) {
         cards.push_back(card);
     }
 
-    // 3. Try to play cards
-    bool result = roomManager->playCards(player_name, cards);
+    // Get player's room
+    std::string room_id = playerManager->getPlayerRoom(player_name);
+    if (room_id.empty()) {
+        return ProtocolHelper::createErrorResponse("Not in any room");
+    }
+
+    // Use GameManager for game logic
+    bool result = gameManager->playCards(roomManager, room_id, player_name, cards);
 
     if (result) {
         ProtocolMessage response = ProtocolHelper::createTurnResultResponse("play_success");
-        response.should_broadcast_to_room = true;  // ADD THIS - notify others of card play
+        response.should_broadcast_to_room = true;
         return response;
     } else {
         return ProtocolHelper::createErrorResponse("Invalid card play");

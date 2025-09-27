@@ -67,6 +67,41 @@ bool ProtocolHelper::isValidMessage(const std::string& message) {
     }
 }
 
+ProtocolMessage createGameStateResponse(const std::string& player_id,
+                                                       const std::vector<std::string>& hand_cards,
+                                                       int reserve_count,
+                                                       const std::string& current_player,
+                                                       const std::string& top_discard_card,
+                                                       const std::vector<std::string>& other_players_info,
+                                                       bool must_play_seven_or_lower) {
+    ProtocolMessage msg(MessageType::GAME_STATE);
+    msg.player_id = player_id;
+
+    // Convert hand cards to comma-separated string
+    std::string hand_str = "";
+    for (size_t i = 0; i < hand_cards.size(); ++i) {
+        if (i > 0) hand_str += ",";
+        hand_str += hand_cards[i];
+    }
+
+    // Convert other players info to comma-separated string
+    std::string other_players_str = "";
+    for (size_t i = 0; i < other_players_info.size(); ++i) {
+        if (i > 0) other_players_str += ",";
+        other_players_str += other_players_info[i];
+    }
+
+    msg.setData("hand_cards", hand_str);
+    msg.setData("reserve_count", std::to_string(reserve_count));
+    msg.setData("current_player", current_player);
+    msg.setData("top_discard", top_discard_card);
+    msg.setData("other_players", other_players_str);
+    msg.setData("must_play_seven_or_lower", must_play_seven_or_lower ? "true" : "false");
+    msg.setData("status", "game_state");
+
+    return msg;
+}
+
 std::string ProtocolHelper::getMessageTypeName(MessageType type) {
     switch (type) {
         case MessageType::CONNECT: return "CONNECT";

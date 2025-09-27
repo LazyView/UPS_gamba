@@ -422,10 +422,10 @@ void NetworkManager::heartbeatMonitorLoop() {
                 // Get player's room for game cleanup
                 std::string room_id = playerManager->getPlayerRoom(player_name);
                 if (!room_id.empty()) {
-                    roomManager->handlePlayerTimeout(player_name);
+                    roomManager->handlePlayerTimeout(player_name, room_id);
                 }
-
                 // Complete removal
+                playerManager->clearPlayerRoom(player_name);
                 playerManager->removePlayer(player_name);
             }
 

@@ -10,6 +10,7 @@
 #include "core/Logger.h"
 #include "core/PlayerManager.h"
 #include "core/RoomManager.h"
+#include "core/GameManager.h"
 #include "core/server_config.h"
 #include "network/MessageHandler.h"
 #include "network/MessageValidator.h"
@@ -32,8 +33,8 @@ void testModularComponents() {
     std::string result = playerManager.connectPlayer("TestPlayer", 1);
     std::cout << "PlayerManager test: " << (result.empty() ? "FAILED" : "SUCCESS") << std::endl;
 
-    // Test RoomManager
-    RoomManager roomManager(&playerManager);
+    // Test RoomManager - FIXED: no parameter
+    RoomManager roomManager;
     std::string room_id = roomManager.createRoom();
     std::cout << "RoomManager test: " << (room_id.empty() ? "FAILED" : "SUCCESS") << std::endl;
 
@@ -48,8 +49,12 @@ void testModularComponents() {
     std::string serialized = msg.serialize();
     std::cout << "ProtocolMessage test: " << (!serialized.empty() ? "SUCCESS" : "FAILED") << std::endl;
 
-    // Test MessageHandler
-    MessageHandler messageHandler(&playerManager, &roomManager, &validator, &logger); // ADD &logger
+    // Test GameManager - ADDED
+    GameManager gameManager;
+    std::cout << "GameManager test: SUCCESS (initialized)" << std::endl;
+
+    // Test MessageHandler - FIXED: added GameManager
+    MessageHandler messageHandler(&playerManager, &roomManager, &validator, &logger, &gameManager);
     std::cout << "MessageHandler test: SUCCESS (initialized)" << std::endl;
 
     std::cout << "=== All modular components initialized successfully ===" << std::endl;
@@ -95,9 +100,10 @@ int main(int argc, char* argv[]) {
         logger.setLogLevel(LogLevel::DEBUG);
         logger.setLogToFile(config.enable_file_logging);
         PlayerManager playerManager;
-        RoomManager roomManager(&playerManager);
+        RoomManager roomManager;
+        GameManager gameManager;
         MessageValidator validator;
-        MessageHandler messageHandler(&playerManager, &roomManager, &validator, &logger); // ADD &logger
+        MessageHandler messageHandler(&playerManager, &roomManager, &validator, &logger, &gameManager);
 
         // Initialize NetworkManager with heartbeat monitoring
         NetworkManager networkManager(&playerManager, &roomManager, &messageHandler,

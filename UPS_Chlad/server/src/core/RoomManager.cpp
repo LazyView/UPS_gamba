@@ -22,6 +22,7 @@ bool RoomManager::roomExists(const std::string& room_id) {
 }
 
 bool RoomManager::joinRoom(const std::string& player_id, const std::string& room_id) {
+
     auto room_it = rooms.find(room_id);
     if (room_it == rooms.end()) {
         return false;  // Room doesn't exist
@@ -30,60 +31,49 @@ bool RoomManager::joinRoom(const std::string& player_id, const std::string& room
     Room& room = room_it->second;
 
     // Check if room is full
-    if (room.players.size() >= 2) {  // ← Should be 1 player (Alice), so this should pass
+    if (room.players.size() >= 2) {  // FIX: was calling isRoomFull incorrectly
         return false;
     }
 
     // Check if player already in room
     if(std::find(room.players.begin(), room.players.end(), player_id) != room.players.end()) {
-        return false;  // ← Bob isn't in the room yet, so this should pass
+        return false;
     }
 
-    // Use the Room's integrated game logic to add player
-    if (room.addPlayerToGame(player_id)) {  // ← MIGHT BE FAILING HERE!
-        playerManager->setPlayerRoom(player_id, room_id);
+    // ADD THE MISSING PART:
+    if (room.addPlayerToGame(player_id)) {
         return true;
     }
 
-    return false;  // ← IF addPlayerToGame() FAILS, RETURNS FALSE
+    return false;
 }
 
 bool RoomManager::isRoomFull(const std::string& room_id) {
-    std::lock_guard<std::mutex> lock(rooms_mutex);
 
     auto room_it = rooms.find(room_id);
     if (room_it == rooms.end()) {
         return false;  // Room doesn't exist, so not full
     }
 
-    return room_it->second.players.size() == 2;  // True if exactly 2 players
+    return room_it->second.players.size() >= 2;  // True if exactly 2 players
 }
 
-bool RoomManager::leaveRoom(const std::string& player_id) {
+bool RoomManager::leaveRoom(const std::string& player_id, const std::string& room_id) {
     std::lock_guard<std::mutex> lock(rooms_mutex);
 
-    auto player = playerManager->getPlayer(player_id);
-    if (!player.has_value()) {
-        return false;  // Player doesn't exist
-    }
-
-    std::string room_id = player->room_id;
     if (room_id.empty()) {
         return false;  // Player not in any room
     }
 
     auto room_it = rooms.find(room_id);
-    if (room_it != rooms.end()) {  // Room exists
-        // Remove player from room's player list (use std::remove)
+    if (room_it != rooms.end()) {
+        // Remove player from room's player list
         auto& players_vec = room_it->second.players;
         players_vec.erase(std::remove(players_vec.begin(), players_vec.end(), player_id), players_vec.end());
 
-        // Clear player's room in PlayerManager
-        playerManager->clearPlayerRoom(player_id);
-
         // Delete room if empty
         if (room_it->second.players.empty()) {
-            rooms.erase(room_id);
+            rooms.erase(room_it);
         }
         return true;
     }
@@ -102,20 +92,30 @@ std::vector<std::string> RoomManager::getRoomPlayers(const std::string& room_id)
 std::string RoomManager::joinAnyAvailableRoom(const std::string& player_name) {
     std::lock_guard<std::mutex> lock(rooms_mutex);
 
+    std::cout << "DEBUG: Looking for available room for player: " << player_name << std::endl;
+    std::cout << "DEBUG: Total rooms: " << rooms.size() << std::endl;
+
     // Look for rooms with exactly 1 player (available for second player)
     for (auto& pair : rooms) {
+        std::cout << "DEBUG: Room " << pair.first << " has " << pair.second.players.size() << " players" << std::endl;
+
         if (pair.second.players.size() == 1) {
+            std::cout << "DEBUG: Found available room: " << pair.first << std::endl;
             // Found room with 1 player - join it
-            // This will make it full (2 players)
             if (joinRoom(player_name, pair.first)) {
+                std::cout << "DEBUG: Successfully joined room: " << pair.first << std::endl;
                 return pair.first;  // Return room_id
+            } else {
+                std::cout << "DEBUG: Failed to join room: " << pair.first << std::endl;
             }
         }
     }
 
     // No available rooms - create new empty room
+    std::cout << "DEBUG: No available rooms, creating new room" << std::endl;
     std::string new_room = createRoom();
     if (joinRoom(player_name, new_room)) {
+        std::cout << "DEBUG: Created and joined new room: " << new_room << std::endl;
         return new_room;
     }
     return "";  // Failed to join any room
@@ -140,104 +140,7 @@ bool RoomManager::startGame(const std::string& room_id) {
     return room.startGame();
 }
 
-bool RoomManager::playCards(const std::string& player_name, const std::vector<std::string>& cards) {
-    std::lock_guard<std::mutex> lock(rooms_mutex);
-
-    // Get player's room
-    std::string room_id = playerManager->getPlayerRoom(player_name);
-    if (room_id.empty()) return false;
-
-    // Find room
-    auto room_it = rooms.find(room_id);
-    if (room_it == rooms.end()) return false;
-
-    Room& room = room_it->second;
-
-    // Convert string cards to Card objects
-    std::vector<Card> cardObjects;
-    for (const std::string& cardStr : cards) {
-        Card card = parseCardFromString(cardStr);
-        if (card.rank == Rank::ACE && card.suit == Suit::HEARTS && cardStr != "AH") {
-            // Invalid card string - parseCardFromString returns AH for invalid cards
-            return false;
-        }
-        cardObjects.push_back(card);
-    }
-
-    // Use game logic to play cards
-    return room.gameLogic->playCards(player_name, cardObjects);
-}
-
-bool RoomManager::pickupPile(const std::string& player_name) {
-    std::lock_guard<std::mutex> lock(rooms_mutex);
-
-    std::string room_id = playerManager->getPlayerRoom(player_name);
-    if (room_id.empty()) return false;
-
-    auto room_it = rooms.find(room_id);
-    if (room_it == rooms.end()) return false;
-
-    Room& room = room_it->second;
-
-    // Use game logic to pickup discard pile
-    return room.gameLogic->pickupDiscardPile(player_name);
-}
-
-Card RoomManager::parseCardFromString(const std::string& cardStr) {
-    if (cardStr.length() < 2) {
-        // Invalid card string, return default (Ace of Hearts)
-        return Card(Suit::HEARTS, Rank::ACE);
-    }
-
-    // Parse rank (first character(s))
-    Rank rank;
-    char rankChar = cardStr[0];
-    switch (rankChar) {
-        case 'A': rank = Rank::ACE; break;
-        case '2': rank = Rank::TWO; break;
-        case '3': rank = Rank::THREE; break;
-        case '4': rank = Rank::FOUR; break;
-        case '5': rank = Rank::FIVE; break;
-        case '6': rank = Rank::SIX; break;
-        case '7': rank = Rank::SEVEN; break;
-        case '8': rank = Rank::EIGHT; break;
-        case '9': rank = Rank::NINE; break;
-        case '1': // 10 is represented as "10X"
-            if (cardStr.length() >= 3 && cardStr[1] == '0') {
-                rank = Rank::TEN;
-            } else {
-                return Card(Suit::HEARTS, Rank::ACE); // Invalid
-            }
-            break;
-        case 'J': rank = Rank::JACK; break;
-        case 'Q': rank = Rank::QUEEN; break;
-        case 'K': rank = Rank::KING; break;
-        default:
-            return Card(Suit::HEARTS, Rank::ACE); // Invalid
-    }
-
-    // Parse suit (last character)
-    char suitChar = cardStr.back();
-    Suit suit;
-    switch (suitChar) {
-        case 'H': suit = Suit::HEARTS; break;
-        case 'D': suit = Suit::DIAMONDS; break;
-        case 'C': suit = Suit::CLUBS; break;
-        case 'S': suit = Suit::SPADES; break;
-        default:
-            return Card(Suit::HEARTS, Rank::ACE); // Invalid
-    }
-
-    return Card(suit, rank);
-}
-
-void RoomManager::handlePlayerTimeout(const std::string& player_name) {
-    // Get player's room before removing them
-    std::string room_id;
-    if (playerManager) {
-        room_id = playerManager->getPlayerRoom(player_name);
-    }
-
+void RoomManager::handlePlayerTimeout(const std::string& player_name, const std::string& room_id) {
     // If player was in a room, handle the timeout in that room
     if (!room_id.empty() && room_id != "lobby") {
         std::lock_guard<std::mutex> lock(rooms_mutex);
@@ -262,11 +165,6 @@ void RoomManager::handlePlayerTimeout(const std::string& player_name) {
                     }
                 }
             }
-        }
-
-        // Clear player's room in PlayerManager
-        if (playerManager) {
-            playerManager->clearPlayerRoom(player_name);
         }
     }
 }
