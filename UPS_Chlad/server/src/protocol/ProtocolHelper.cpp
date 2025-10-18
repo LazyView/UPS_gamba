@@ -67,40 +67,42 @@ bool ProtocolHelper::isValidMessage(const std::string& message) {
     }
 }
 
-ProtocolMessage createGameStateResponse(const std::string& player_id,
-                                                       const std::vector<std::string>& hand_cards,
-                                                       int reserve_count,
-                                                       const std::string& current_player,
-                                                       const std::string& top_discard_card,
-                                                       const std::vector<std::string>& other_players_info,
-                                                       bool must_play_seven_or_lower) {
-    ProtocolMessage msg(MessageType::GAME_STATE);
-    msg.player_id = player_id;
-
-    // Convert hand cards to comma-separated string
-    std::string hand_str = "";
-    for (size_t i = 0; i < hand_cards.size(); ++i) {
-        if (i > 0) hand_str += ",";
-        hand_str += hand_cards[i];
-    }
-
-    // Convert other players info to comma-separated string
-    std::string other_players_str = "";
-    for (size_t i = 0; i < other_players_info.size(); ++i) {
-        if (i > 0) other_players_str += ",";
-        other_players_str += other_players_info[i];
-    }
-
-    msg.setData("hand_cards", hand_str);
-    msg.setData("reserve_count", std::to_string(reserve_count));
-    msg.setData("current_player", current_player);
-    msg.setData("top_discard", top_discard_card);
-    msg.setData("other_players", other_players_str);
-    msg.setData("must_play_seven_or_lower", must_play_seven_or_lower ? "true" : "false");
-    msg.setData("status", "game_state");
-
-    return msg;
-}
+// ProtocolMessage ProtocolHelper::createGameStateResponse(
+//     const std::string& player_name,
+//     const std::string& room_id,
+//     const std::vector<Card>& player_hand,
+//     size_t player_reserves,
+//     size_t opponent_hand_count,
+//     size_t opponent_reserve_count,
+//     const std::string& current_player,
+//     const Card& top_discard_card,
+//     size_t deck_size,
+//     bool must_play_seven_or_lower)
+// {
+//     ProtocolMessage msg(MessageType::GAME_STATE);
+//     msg.player_id = player_name;
+//     msg.room_id = room_id;
+    
+//     // Build comma-separated list of player's hand cards
+//     std::string hand_str;
+//     for (size_t i = 0; i < player_hand.size(); ++i) {
+//         if (i > 0) hand_str += ",";
+//         hand_str += player_hand[i].toString();
+//     }
+    
+//     // Set all game state data
+//     msg.setData("hand", hand_str);                                    // e.g. "AH,5D,KC"
+//     msg.setData("reserves", std::to_string(player_reserves));         // e.g. "3"
+//     msg.setData("opponent_hand", std::to_string(opponent_hand_count));    // e.g. "3"
+//     msg.setData("opponent_reserves", std::to_string(opponent_reserve_count)); // e.g. "3"
+//     msg.setData("current_player", current_player);                    // e.g. "Julie"
+//     msg.setData("top_card", top_discard_card.toString());            // e.g. "7H"
+//     msg.setData("deck_size", std::to_string(deck_size));             // e.g. "40"
+//     msg.setData("must_play_low", must_play_seven_or_lower ? "true" : "false");
+//     msg.setData("your_turn", (player_name == current_player) ? "true" : "false");
+    
+//     return msg;
+// }
 
 std::string ProtocolHelper::getMessageTypeName(MessageType type) {
     switch (type) {

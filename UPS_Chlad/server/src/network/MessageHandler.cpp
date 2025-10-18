@@ -93,22 +93,37 @@ ProtocolMessage MessageHandler::handleConnect(const ProtocolMessage& msg, int cl
     // 1. Get player name from message
     std::string player_name = MessageParser::getPlayerNameFromMessage(msg);
     logger->debug("handleConnect: extracted player name '" + player_name + "'");
-    if(player_name.empty()) {
-        logger->debug("handleConnect: player name is empty");
-        return ProtocolHelper::createErrorResponse("Invalid name");
+
+    // 2. VALIDATE PLAYER NAME
+    if (player_name.empty()) {
+        logger->warning("handleConnect: empty player name");
+        return ProtocolHelper::createErrorResponse("Player name cannot be empty");
     }
-    logger->debug("handleConnect: calling playerManager->connectPlayer with name='" + player_name + "', socket=" + std::to_string(client_socket)); // ADD THIS
+
+    if (player_name.length() > 32) {
+        logger->warning("handleConnect: player name too long (" + std::to_string(player_name.length()) + " chars)");
+        return ProtocolHelper::createErrorResponse("Player name too long (max 32 characters)");
+    }
+
+    // Check for invalid characters (only allow alphanumeric, underscore, hyphen)
+    for (char c : player_name) {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') {
+            logger->warning("handleConnect: player name contains invalid character: '" + std::string(1, c) + "'");
+            return ProtocolHelper::createErrorResponse("Player name contains invalid characters (only letters, numbers, _, - allowed)");
+        }
+    }
+
+    // 3. Try to connect player
+    logger->debug("handleConnect: calling playerManager->connectPlayer with name='" + player_name + "', socket=" + std::to_string(client_socket));
     std::string result = playerManager->connectPlayer(player_name, client_socket);
-    logger->debug("handleConnect: playerManager->connectPlayer returned '" + result + "'"); // ADD THIS
+    logger->debug("handleConnect: playerManager->connectPlayer returned '" + result + "'");
 
     // 4. Return response
     if (!result.empty()) {
-        logger->debug("handleConnect: creating success response"); // ADD THIS
-        // Success - result contains the player name
+        logger->debug("handleConnect: creating success response");
         return ProtocolHelper::createConnectedResponse(result, player_name);
     } else {
-        logger->debug("handleConnect: creating error response"); // ADD THIS
-        // Failed - player name already taken or other error
+        logger->debug("handleConnect: creating error response");
         return ProtocolHelper::createErrorResponse("Connection failed - name already taken");
     }
 }
@@ -119,10 +134,29 @@ ProtocolMessage MessageHandler::handleJoinRoom(const std::string& player_name) {
 
     if (!assigned_room.empty()) {
         playerManager->setPlayerRoom(player_name, assigned_room);
-        logger->debug("handleJoinRoom: room assigned successfully");
+        logger->debug("handleJoinRoom: room assigned successfully: " + assigned_room);
 
+        // Get list of all players currently in the room
+        std::vector<std::string> room_players = roomManager->getRoomPlayers(assigned_room);
+
+        // Build comma-separated player list
+        std::string players_list;
+        for (size_t i = 0; i < room_players.size(); ++i) {
+            if (i > 0) players_list += ",";
+            players_list += room_players[i];
+        }
+
+        logger->debug("handleJoinRoom: players in room: " + players_list + " (count: " + std::to_string(room_players.size()) + ")");
+
+        // Create response with player list
         ProtocolMessage response = ProtocolHelper::createRoomJoinedResponse(player_name, assigned_room);
-        response.should_broadcast_to_room = true;  // SET BROADCAST FLAG
+        response.setData("players", players_list);
+        response.setData("player_count", std::to_string(room_players.size()));
+        response.setData("room_full", (room_players.size() >= 2) ? "true" : "false");
+        response.should_broadcast_to_room = true;
+
+        logger->info("Player '" + player_name + "' joined room '" + assigned_room + "' with " + std::to_string(room_players.size()) + " players");
+
         return response;
     } else {
         logger->debug("handleJoinRoom: room not assigned");
@@ -176,7 +210,10 @@ ProtocolMessage MessageHandler::handleStartGame(const std::string& player_name) 
 
     if (result) {
         ProtocolMessage response = ProtocolHelper::createGameStartedResponse();
+        response.room_id = room_id;
         response.should_broadcast_to_room = true;
+        logger->info("Game started in room '" + room_id + "' by player '" + player_name + "'");
+        
         return response;
     } else {
         return ProtocolHelper::createErrorResponse("Cannot start game");

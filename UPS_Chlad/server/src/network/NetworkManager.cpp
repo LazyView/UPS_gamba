@@ -244,21 +244,23 @@ void NetworkManager::handleClient(int client_socket) {
                         ssize_t bytes_sent = send(client_socket, response_str.c_str(), response_str.length(), MSG_NOSIGNAL);
                         logger->debug("Sent response to client " + std::to_string(client_socket) + ": " + response.serialize());
 
-                        // ADD THIS NEW BROADCAST CHECK:
                         if (response.should_broadcast_to_room) {
                             logger->debug("Response flagged for broadcasting");
 
                             // Get player info from socket
                             std::string player_name = playerManager->getPlayerIdFromSocket(client_socket);
                             if (!player_name.empty()) {
-                                std::string room_id = playerManager->getPlayerRoom(player_name);
+                                std::string room_id = response.getRoomId();
                                 if (!room_id.empty()) {
                                     logger->debug("Broadcasting to room " + room_id + " for player " + player_name);
 
                                     // Create broadcast message (you can customize this message)
                                     ProtocolMessage broadcast_msg = response;
                                     broadcast_msg.setData("broadcast_type", "room_notification");
-
+									if (response.getType() == MessageType::ROOM_JOINED) {
+                						broadcast_msg.setData("joined_player", player_name);
+                						logger->debug("Added joined_player=" + player_name + " to broadcast");
+            						}
                                     // Broadcast to room (exclude the sender)
                                     broadcastToRoom(room_id, broadcast_msg, player_name);
                                 } else {
@@ -454,7 +456,6 @@ void NetworkManager::broadcastToRoom(const std::string& room_id, const ProtocolM
 
     // Get all players in the room
     std::vector<std::string> room_players = playerManager->getPlayersInRoom(room_id);
-
     if (room_players.empty()) {
         logger->debug("No players to broadcast to in room " + room_id);
         return;
