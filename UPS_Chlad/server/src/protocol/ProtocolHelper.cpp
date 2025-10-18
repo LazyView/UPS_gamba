@@ -2,6 +2,7 @@
 // KIV/UPS Network Programming Project
 
 #include "../include/protocol/ProtocolHelper.h"
+#include "../include/core/GameManager.h"  // For GameStateData
 
 ProtocolMessage ProtocolHelper::createConnectedResponse(const std::string& player_id, const std::string& player_name) {
     ProtocolMessage msg(MessageType::CONNECTED);
@@ -51,6 +52,48 @@ ProtocolMessage ProtocolHelper::createPongResponse() {
     return msg;
 }
 
+ProtocolMessage ProtocolHelper::createGameStateResponse(
+    const std::string& player_name,
+    const std::string& room_id,
+    const GameStateData& game_data)
+{
+    ProtocolMessage msg(MessageType::GAME_STATE);
+    msg.player_id = player_name;
+    msg.room_id = room_id;
+    
+    // Build comma-separated list of player's hand cards
+    std::string hand_str;
+    for (size_t i = 0; i < game_data.hand_cards.size(); ++i) {
+        if (i > 0) hand_str += ",";
+        hand_str += game_data.hand_cards[i];
+    }
+    
+    msg.setData("hand", hand_str);
+    msg.setData("reserves", std::to_string(game_data.reserve_count));
+    msg.setData("current_player", game_data.current_player);
+    msg.setData("top_card", game_data.top_discard_card);
+    msg.setData("must_play_low", game_data.must_play_seven_or_lower ? "true" : "false");
+    msg.setData("your_turn", (player_name == game_data.current_player) ? "true" : "false");
+    
+    // Parse other players info (format: "playername:handsize:reservesize")
+    for (const std::string& player_info : game_data.other_players_info) {
+        size_t first_colon = player_info.find(':');
+        size_t second_colon = player_info.find(':', first_colon + 1);
+        
+        if (first_colon != std::string::npos && second_colon != std::string::npos) {
+            std::string opponent_name = player_info.substr(0, first_colon);
+            std::string hand_size = player_info.substr(first_colon + 1, second_colon - first_colon - 1);
+            std::string reserve_size = player_info.substr(second_colon + 1);
+            
+            msg.setData("opponent_hand", hand_size);
+            msg.setData("opponent_reserves", reserve_size);
+            msg.setData("opponent_name", opponent_name);
+        }
+    }
+    
+    return msg;
+}
+
 bool ProtocolHelper::isValidMessage(const std::string& message) {
     // Basic validation - check if message has at least type field
     if (message.empty()) return false;
@@ -66,43 +109,6 @@ bool ProtocolHelper::isValidMessage(const std::string& message) {
         return false;
     }
 }
-
-// ProtocolMessage ProtocolHelper::createGameStateResponse(
-//     const std::string& player_name,
-//     const std::string& room_id,
-//     const std::vector<Card>& player_hand,
-//     size_t player_reserves,
-//     size_t opponent_hand_count,
-//     size_t opponent_reserve_count,
-//     const std::string& current_player,
-//     const Card& top_discard_card,
-//     size_t deck_size,
-//     bool must_play_seven_or_lower)
-// {
-//     ProtocolMessage msg(MessageType::GAME_STATE);
-//     msg.player_id = player_name;
-//     msg.room_id = room_id;
-    
-//     // Build comma-separated list of player's hand cards
-//     std::string hand_str;
-//     for (size_t i = 0; i < player_hand.size(); ++i) {
-//         if (i > 0) hand_str += ",";
-//         hand_str += player_hand[i].toString();
-//     }
-    
-//     // Set all game state data
-//     msg.setData("hand", hand_str);                                    // e.g. "AH,5D,KC"
-//     msg.setData("reserves", std::to_string(player_reserves));         // e.g. "3"
-//     msg.setData("opponent_hand", std::to_string(opponent_hand_count));    // e.g. "3"
-//     msg.setData("opponent_reserves", std::to_string(opponent_reserve_count)); // e.g. "3"
-//     msg.setData("current_player", current_player);                    // e.g. "Julie"
-//     msg.setData("top_card", top_discard_card.toString());            // e.g. "7H"
-//     msg.setData("deck_size", std::to_string(deck_size));             // e.g. "40"
-//     msg.setData("must_play_low", must_play_seven_or_lower ? "true" : "false");
-//     msg.setData("your_turn", (player_name == current_player) ? "true" : "false");
-    
-//     return msg;
-// }
 
 std::string ProtocolHelper::getMessageTypeName(MessageType type) {
     switch (type) {

@@ -9,6 +9,9 @@
 #include "MessageType.h"
 #include "ProtocolMessage.h"
 
+// Forward declaration
+struct GameStateData;
+
 class ProtocolHelper {
 public:
     // Create common response messages
@@ -19,18 +22,14 @@ public:
     static ProtocolMessage createTurnResultResponse(const std::string& result);
     static ProtocolMessage createErrorResponse(const std::string& error_message);
     static ProtocolMessage createPongResponse();
-    // static ProtocolMessage createGameStateResponse(
-    //     const std::string& player_name,
-    //     const std::string& room_id,
-    //     const std::vector<Card>& player_hand,
-    //     size_t player_reserves,
-    //     size_t opponent_hand_count,
-    //     size_t opponent_reserve_count,
-    //     const std::string& current_player,
-    //     const Card& top_discard_card,
-    //     size_t deck_size,
-    //     bool must_play_seven_or_lower
-    // );
+    
+    // NEW: Create game state message from GameStateData
+    static ProtocolMessage createGameStateResponse(
+        const std::string& player_name,
+        const std::string& room_id,
+        const GameStateData& game_data
+    );
+    
     // Validation utilities
     static bool isValidMessage(const std::string& message);
 

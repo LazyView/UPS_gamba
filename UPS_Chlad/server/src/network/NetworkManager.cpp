@@ -91,10 +91,10 @@ void NetworkManager::run() {
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
         logger->info("New client connected from " + std::string(client_ip) + ":" + std::to_string(ntohs(client_addr.sin_port)) + " (socket: " + std::to_string(client_socket) + ")");
 
-        // NEW - just create and detach directly:
+        // Create and detach thread for handling client
         try {
             std::thread client_handler(&NetworkManager::handleClient, this, client_socket);
-            client_handler.detach(); // Detach for independent execution
+            client_handler.detach();
         } catch (const std::exception& e) {
             logger->error("Failed to create thread for client " + std::to_string(client_socket) + ": " + e.what());
             close(client_socket);
@@ -116,10 +116,10 @@ void NetworkManager::stop() {
     // Stop heartbeat monitoring first
     stopHeartbeatMonitor();
 
-    // Close server socket to break accept() loop - ADD THIS
+    // Close server socket to break accept() loop
     if (server_socket >= 0) {
         logger->debug("Closing server socket to break accept loop");
-        shutdown(server_socket, SHUT_RDWR);  // Shutdown socket
+        shutdown(server_socket, SHUT_RDWR);
         close(server_socket);
         server_socket = -1;
     }
@@ -167,7 +167,7 @@ bool NetworkManager::setupSocket() {
     }
 
     // Start listening
-    const int backlog = 128; // Maximum pending connections
+    const int backlog = 128;
     if (listen(server_socket, backlog) < 0) {
         logger->error("Failed to listen on socket: " + std::string(strerror(errno)));
         close(server_socket);
@@ -192,7 +192,7 @@ void NetworkManager::handleClient(int client_socket) {
             // Receive data from client
             ssize_t bytes_received = recv(client_socket, buffer, BUFFER_SIZE - 1, 0);
 
-            logger->debug("recv() returned: " + std::to_string(bytes_received) + " bytes for socket " + std::to_string(client_socket)); // ADD THIS
+            logger->debug("recv() returned: " + std::to_string(bytes_received) + " bytes for socket " + std::to_string(client_socket));
 
             if (bytes_received <= 0) {
                 if (bytes_received == 0) {
@@ -212,9 +212,10 @@ void NetworkManager::handleClient(int client_socket) {
                 logger->warning("Message too large from client " + std::to_string(client_socket) + ", disconnecting");
                 break;
             }
-            logger->debug("Current message_buffer for socket " + std::to_string(client_socket) + ": '" + message_buffer + "'"); // ADD THIS
+            
+            logger->debug("Current message_buffer for socket " + std::to_string(client_socket) + ": '" + message_buffer + "'");
 
-            // Process complete messages (assuming newline-delimited)
+            // Process complete messages (newline-delimited)
             size_t pos = 0;
             while ((pos = message_buffer.find('\n')) != std::string::npos) {
                 std::string complete_message = message_buffer.substr(0, pos);
@@ -225,68 +226,105 @@ void NetworkManager::handleClient(int client_socket) {
                     complete_message.pop_back();
                 }
 
-                logger->debug("Processing complete message: '" + complete_message + "'"); // ADD THIS
+                logger->debug("Processing complete message: '" + complete_message + "'");
 
                 if (!complete_message.empty()) {
                     logger->debug("Received message from client " + std::to_string(client_socket) + ": " + complete_message);
 
-                    // Process message through MessageHandler
+                    // Process message through MessageHandler - NOW RETURNS VECTOR
                     try {
-                        ProtocolMessage response = messageHandler->processMessage(complete_message, client_socket);
+                        std::vector<ProtocolMessage> responses = messageHandler->processMessage(complete_message, client_socket);
+                        
+                        logger->debug("MessageHandler returned " + std::to_string(responses.size()) + " response(s)");
 
-                        logger->debug("MessageHandler returned response type: " + std::to_string(static_cast<int>(response.getType()))); // ADD THIS
-
-                        // Send response back to client
-                        std::string response_str = response.serialize() + "\n";
-
-                        logger->debug("Sending response: '" + response_str + "'"); // ADD THIS
-
-                        ssize_t bytes_sent = send(client_socket, response_str.c_str(), response_str.length(), MSG_NOSIGNAL);
-                        logger->debug("Sent response to client " + std::to_string(client_socket) + ": " + response.serialize());
-
-                        if (response.should_broadcast_to_room) {
-                            logger->debug("Response flagged for broadcasting");
-
-                            // Get player info from socket
-                            std::string player_name = playerManager->getPlayerIdFromSocket(client_socket);
-                            if (!player_name.empty()) {
+                        // Process each response
+                        for (const ProtocolMessage& response : responses) {
+                            logger->debug("Processing response type: " + std::to_string(static_cast<int>(response.getType())));
+                            
+                            if (response.should_broadcast_to_room) {
+                                // Handle broadcast messages
                                 std::string room_id = response.getRoomId();
+                                
                                 if (!room_id.empty()) {
-                                    logger->debug("Broadcasting to room " + room_id + " for player " + player_name);
-
-                                    // Create broadcast message (you can customize this message)
+                                    std::string player_name = playerManager->getPlayerIdFromSocket(client_socket);
+                                    
+                                    // STEP 1: Send original response to requesting client
+                                    std::string response_str = response.serialize() + "\n";
+                                    ssize_t bytes_sent = send(client_socket, response_str.c_str(), response_str.length(), MSG_NOSIGNAL);
+                                    
+                                    if (bytes_sent < 0) {
+                                        logger->error("Failed to send response to requesting client " + std::to_string(client_socket) + ": " + std::string(strerror(errno)));
+                                    } else if (static_cast<size_t>(bytes_sent) != response_str.length()) {
+                                        logger->warning("Partial send to requesting client " + std::to_string(client_socket));
+                                    } else {
+                                        logger->debug("Sent response to requesting client " + std::to_string(client_socket));
+                                    }
+                                    
+                                    // STEP 2: Broadcast modified version to OTHER players (exclude sender)
+                                    logger->debug("Broadcasting to room " + room_id + " (excluding " + player_name + ")");
+                                    
                                     ProtocolMessage broadcast_msg = response;
                                     broadcast_msg.setData("broadcast_type", "room_notification");
-									if (response.getType() == MessageType::ROOM_JOINED) {
-                						broadcast_msg.setData("joined_player", player_name);
-                						logger->debug("Added joined_player=" + player_name + " to broadcast");
-            						}
-                                    // Broadcast to room (exclude the sender)
+                                    
+                                    // Add context about who triggered the action
+                                    if (response.getType() == MessageType::ROOM_JOINED) {
+                                        broadcast_msg.setData("joined_player", player_name);
+                                    }
+                                    
                                     broadcastToRoom(room_id, broadcast_msg, player_name);
                                 } else {
-                                    logger->debug("Player " + player_name + " not in any room, skipping broadcast");
+                                    logger->warning("Broadcast flagged but no room_id in response");
                                 }
+                                
+                            } else if (!response.player_id.empty()) {
+                                // Message targeted at specific player (not the sender)
+                                logger->debug("Sending targeted message to player '" + response.player_id + "'");
+                                
+                                auto player_opt = playerManager->getPlayer(response.player_id);
+                                
+                                if (player_opt.has_value() && player_opt->connected && player_opt->socket_fd != -1) {
+                                    std::string response_str = response.serialize() + "\n";
+                                    int target_socket = player_opt->socket_fd;
+                                    
+                                    ssize_t bytes_sent = send(target_socket, response_str.c_str(), response_str.length(), MSG_NOSIGNAL);
+                                    
+                                    if (bytes_sent < 0) {
+                                        logger->error("Failed to send targeted message to player '" + response.player_id + "': " + std::string(strerror(errno)));
+                                    } else if (static_cast<size_t>(bytes_sent) != response_str.length()) {
+                                        logger->warning("Partial send to player '" + response.player_id + "': sent " + std::to_string(bytes_sent) + "/" + std::to_string(response_str.length()) + " bytes");
+                                    } else {
+                                        logger->debug("Sent targeted message to player '" + response.player_id + "' on socket " + std::to_string(target_socket));
+                                    }
+                                } else {
+                                    logger->warning("Cannot send to player '" + response.player_id + "' - disconnected or invalid socket");
+                                }
+                                
                             } else {
-                                logger->warning("No player found for socket " + std::to_string(client_socket) + ", cannot broadcast");
+                                // Regular response to the requesting client
+                                std::string response_str = response.serialize() + "\n";
+                                
+                                logger->debug("Sending response: '" + response_str + "'");
+                                
+                                ssize_t bytes_sent = send(client_socket, response_str.c_str(), response_str.length(), MSG_NOSIGNAL);
+                                
+                                if (bytes_sent < 0) {
+                                    logger->error("Failed to send response to client " + std::to_string(client_socket) + ": " + std::string(strerror(errno)));
+                                    break;
+                                } else if (static_cast<size_t>(bytes_sent) != response_str.length()) {
+                                    logger->warning("Partial send to client " + std::to_string(client_socket) + ": sent " + std::to_string(bytes_sent) + "/" + std::to_string(response_str.length()) + " bytes");
+                                } else {
+                                    logger->debug("Sent response to client " + std::to_string(client_socket) + ": " + response.serialize());
+                                }
+                            }
+                            
+                            // Check if client should be disconnected
+                            if (response.hasData("disconnect") && response.getData("disconnect") == "true") {
+                                logger->info("Disconnecting client " + std::to_string(client_socket) + " as requested");
+                                shutdown(client_socket, SHUT_RDWR);
+                                return;  // Exit handleClient immediately
                             }
                         }
-
-                        if (bytes_sent < 0) {
-                            logger->error("Failed to send response to client " + std::to_string(client_socket) + ": " + std::string(strerror(errno)));
-                            break;
-                        } else if (static_cast<size_t>(bytes_sent) != response_str.length()) {
-                            logger->warning("Partial send to client " + std::to_string(client_socket) + ": sent " + std::to_string(bytes_sent) + "/" + std::to_string(response_str.length()) + " bytes");
-                        } else {
-                            logger->debug("Sent response to client " + std::to_string(client_socket) + ": " + response.serialize());
-                        }
-
-                        // Check if client should be disconnected
-                        if (response.hasData("disconnect") && response.getData("disconnect") == "true") {
-                            logger->info("Disconnecting client " + std::to_string(client_socket) + " as requested");
-                            // Immediately shutdown socket to prevent further communication
-                            shutdown(client_socket, SHUT_RDWR);
-                            break; // Exit the entire handleClient function immediately
-                        }
+                        
                     } catch (const std::exception& e) {
                         logger->error("Error processing message from client " + std::to_string(client_socket) + ": " + e.what());
 
@@ -302,7 +340,8 @@ void NetworkManager::handleClient(int client_socket) {
     } catch (const std::exception& e) {
         logger->error("Exception in client handler for socket " + std::to_string(client_socket) + ": " + e.what());
     }
-    // CLEANUP CODE GOES HERE (after try-catch block):
+    
+    // Cleanup after client disconnects
     logger->info("Client " + std::to_string(client_socket) + " disconnected, marking for reconnection window");
 
     // Get player name before removing socket mapping
@@ -311,7 +350,8 @@ void NetworkManager::handleClient(int client_socket) {
         // Get room before marking disconnected
         std::string room_id = playerManager->getPlayerRoom(disconnected_player);
         playerManager->markPlayerTemporarilyDisconnected(disconnected_player);
-        // ADD: Broadcast disconnection to room
+        
+        // Broadcast disconnection to room
         if (!room_id.empty()) {
             ProtocolMessage disconnect_broadcast(MessageType::PLAYER_DISCONNECTED);
             disconnect_broadcast.player_id = disconnected_player;
@@ -325,7 +365,7 @@ void NetworkManager::handleClient(int client_socket) {
         logger->debug("No player found for disconnected socket " + std::to_string(client_socket));
     }
 
-    // Only remove socket mapping, don't delete player completely
+    // Remove socket mapping
     playerManager->removeSocketMapping(client_socket);
 
     // Close the socket
@@ -345,10 +385,6 @@ void NetworkManager::cleanup() {
         }
         server_socket = -1;
     }
-
-    // Additional cleanup could include:
-    // - Waiting for client threads to finish (if we kept track of them)
-    // - Cleaning up any other resources
 
     logger->debug("NetworkManager cleanup complete");
 }
@@ -400,12 +436,11 @@ void NetworkManager::heartbeatMonitorLoop() {
             // Handle ping timeouts (mark as temporarily disconnected)
             for (const std::string& player_name : timed_out_players) {
                 logger->info("Player '" + player_name + "' timed out - marking as temporarily disconnected");
-                // Get room before marking disconnected
                 std::string room_id = playerManager->getPlayerRoom(player_name);
 
                 playerManager->markPlayerTemporarilyDisconnected(player_name);
 
-                // ADD: Broadcast timeout to room
+                // Broadcast timeout to room
                 if (!room_id.empty()) {
                     ProtocolMessage timeout_broadcast(MessageType::PLAYER_DISCONNECTED);
                     timeout_broadcast.player_id = player_name;
@@ -421,12 +456,11 @@ void NetworkManager::heartbeatMonitorLoop() {
             for (const std::string& player_name : cleanup_players) {
                 logger->info("Player '" + player_name + "' reconnection window expired - cleaning up");
 
-                // Get player's room for game cleanup
                 std::string room_id = playerManager->getPlayerRoom(player_name);
                 if (!room_id.empty()) {
                     roomManager->handlePlayerTimeout(player_name, room_id);
                 }
-                // Complete removal
+                
                 playerManager->clearPlayerRoom(player_name);
                 playerManager->removePlayer(player_name);
             }
@@ -439,7 +473,7 @@ void NetworkManager::heartbeatMonitorLoop() {
             logger->error("Exception in heartbeat monitor: " + std::string(e.what()));
         }
 
-        // Use condition variable with timeout instead of blocking sleep
+        // Use condition variable with timeout
         std::unique_lock<std::mutex> lock(heartbeat_mutex);
         heartbeat_cv.wait_for(lock, std::chrono::seconds(config->heartbeat_check_interval),
                               [this] { return !heartbeat_running.load(); });
@@ -468,7 +502,7 @@ void NetworkManager::broadcastToRoom(const std::string& room_id, const ProtocolM
     logger->debug("Broadcasting message type " + std::to_string(static_cast<int>(message.getType())) + " to room " + room_id);
 
     for (const std::string& player_name : room_players) {
-        // Skip excluded player (e.g., don't broadcast join message to the player who just joined)
+        // Skip excluded player
         if (player_name == exclude_player) {
             continue;
         }
