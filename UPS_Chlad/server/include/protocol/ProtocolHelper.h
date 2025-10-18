@@ -30,6 +30,9 @@ public:
         const GameStateData& game_data
     );
     
+    // NEW: Create game over message
+    static ProtocolMessage createGameOverResponse(const std::string& winner);
+    
     // Validation utilities
     static bool isValidMessage(const std::string& message);
 

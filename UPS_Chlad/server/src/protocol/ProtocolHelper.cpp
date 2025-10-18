@@ -75,6 +75,10 @@ ProtocolMessage ProtocolHelper::createGameStateResponse(
     msg.setData("must_play_low", game_data.must_play_seven_or_lower ? "true" : "false");
     msg.setData("your_turn", (player_name == game_data.current_player) ? "true" : "false");
     
+    // NEW: Add deck and discard pile sizes
+    msg.setData("deck_size", std::to_string(game_data.deck_size));
+    msg.setData("discard_pile_size", std::to_string(game_data.discard_pile_size));
+    
     // Parse other players info (format: "playername:handsize:reservesize")
     for (const std::string& player_info : game_data.other_players_info) {
         size_t first_colon = player_info.find(':');
@@ -91,6 +95,13 @@ ProtocolMessage ProtocolHelper::createGameStateResponse(
         }
     }
     
+    return msg;
+}
+
+ProtocolMessage ProtocolHelper::createGameOverResponse(const std::string& winner) {
+    ProtocolMessage msg(MessageType::GAME_OVER);
+    msg.setData("winner", winner);
+    msg.setData("status", "game_over");
     return msg;
 }
 

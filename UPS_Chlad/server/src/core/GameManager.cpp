@@ -3,6 +3,7 @@
 #include "Room.h"
 #include "../game/CardDeck.h"
 #include "../game/GameLogic.h"
+#include <stdexcept>
 
 GameManager::GameManager() {
 }
@@ -82,6 +83,9 @@ GameStateData GameManager::getGameStateForPlayer(RoomManager* roomManager, const
         // Get top discard card
         if (!room->gameLogic->getDiscardPile().empty()) {
             result.top_discard_card = room->gameLogic->getTopDiscardCard().toString();
+        } else {
+            // Empty pile - use placeholder card (1S)
+            result.top_discard_card = "1S";  // Placeholder: any card can be played
         }
         
         // Get other players' info
@@ -97,6 +101,11 @@ GameStateData GameManager::getGameStateForPlayer(RoomManager* roomManager, const
         
         // Get special game state
         result.must_play_seven_or_lower = room->gameLogic->getMustPlaySevenOrLower();
+        
+        // NEW: Get deck and discard pile sizes
+        result.deck_size = room->gameLogic->getDeckSize();
+        result.discard_pile_size = room->gameLogic->getDiscardPile().size();
+        
         result.valid = true;
         
         return result;
@@ -116,10 +125,85 @@ std::string GameManager::getCurrentPlayer(RoomManager* roomManager, const std::s
     });
 }
 
+bool GameManager::isGameOver(RoomManager* roomManager, const std::string& room_id) {
+    return roomManager->withRoom(room_id, [](Room* room) -> bool {
+        if (!room || !room->isGameActive()) return false;
+        
+        // Check if any player has won (no cards left)
+        for (const std::string& player : room->players) {
+            int hand_size = room->gameLogic->getPlayerHandSize(player);
+            int reserve_size = room->gameLogic->getPlayerReserveSize(player);
+            
+            if (hand_size == 0 && reserve_size == 0) {
+                return true;  // Game over, this player won
+            }
+        }
+        
+        return false;
+    });
+}
+
+std::string GameManager::getWinner(RoomManager* roomManager, const std::string& room_id) {
+    return roomManager->withRoom(room_id, [](Room* room) -> std::string {
+        if (!room || !room->isGameActive()) return "";
+        
+        // Find player with no cards left
+        for (const std::string& player : room->players) {
+            int hand_size = room->gameLogic->getPlayerHandSize(player);
+            int reserve_size = room->gameLogic->getPlayerReserveSize(player);
+            
+            if (hand_size == 0 && reserve_size == 0) {
+                return player;  // This player won
+            }
+        }
+        
+        return "";  // No winner yet
+    });
+}
+
 // Helper methods implementation
 Card GameManager::parseCardFromString(const std::string& cardStr) {
-    // Move the implementation from RoomManager here
-    // ... (same implementation as before)
+    if (cardStr.length() < 2) {
+        throw std::invalid_argument("Invalid card string: " + cardStr);
+    }
+
+    // Parse suit (last character)
+    char suitChar = cardStr[cardStr.length() - 1];
+    Suit suit;
+    switch (suitChar) {
+        case 'H': suit = Suit::HEARTS; break;
+        case 'D': suit = Suit::DIAMONDS; break;
+        case 'C': suit = Suit::CLUBS; break;
+        case 'S': suit = Suit::SPADES; break;
+        default: throw std::invalid_argument("Invalid suit: " + std::string(1, suitChar));
+    }
+
+    // Parse rank (everything except last character)
+    std::string rankStr = cardStr.substr(0, cardStr.length() - 1);
+    Rank rank;
+    
+    if (rankStr == "A") {
+        rank = Rank::ACE;
+    } else if (rankStr == "J") {
+        rank = Rank::JACK;
+    } else if (rankStr == "Q") {
+        rank = Rank::QUEEN;
+    } else if (rankStr == "K") {
+        rank = Rank::KING;
+    } else {
+        // Numeric rank (2-10)
+        try {
+            int rankValue = std::stoi(rankStr);
+            if (rankValue < 1 || rankValue > 13) {
+                throw std::invalid_argument("Rank out of range: " + rankStr);
+            }
+            rank = static_cast<Rank>(rankValue);
+        } catch (const std::exception&) {
+            throw std::invalid_argument("Invalid rank: " + rankStr);
+        }
+    }
+
+    return Card(suit, rank);
 }
 
 std::vector<std::string> GameManager::convertCardsToStrings(const std::vector<Card>& cards) {

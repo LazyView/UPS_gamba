@@ -249,31 +249,60 @@ std::vector<ProtocolMessage> MessageHandler::handleStartGame(const std::string& 
 }
 
 std::vector<ProtocolMessage> MessageHandler::handlePickupPile(const std::string& player_name) {
-    // Get player's room
+    // 1. Get player's room
     std::string room_id = playerManager->getPlayerRoom(player_name);
     if (room_id.empty()) {
         return {ProtocolHelper::createErrorResponse("Not in any room")};
     }
 
-    // Use GameManager instead of RoomManager
+    // 2. Execute pickup via GameManager
     bool result = gameManager->pickupPile(roomManager, room_id, player_name);
 
-    if (result) {
-        ProtocolMessage response = ProtocolHelper::createTurnResultResponse("pickup_success");
-        response.should_broadcast_to_room = true;
-        return {response};
-    } else {
+    if (!result) {
         return {ProtocolHelper::createErrorResponse("Cannot pickup pile")};
     }
+    
+    // 3. Success! Build responses
+    std::vector<ProtocolMessage> responses;
+    
+    // a. Send TURN_RESULT confirmation
+    ProtocolMessage turn_result = ProtocolHelper::createTurnResultResponse("pickup_success");
+    turn_result.player_id = player_name;
+    responses.push_back(turn_result);
+    
+    // b. Send updated GAME_STATE to all players
+    std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
+    
+    for (const std::string& target_player : room_players) {
+        try {
+            GameStateData game_data = gameManager->getGameStateForPlayer(roomManager, room_id, target_player);
+            
+            if (game_data.valid) {
+                ProtocolMessage game_state = ProtocolHelper::createGameStateResponse(target_player, room_id, game_data);
+                game_state.player_id = target_player;
+                responses.push_back(game_state);
+                logger->debug("Added game state for player '" + target_player + "'");
+            } else {
+                logger->error("Invalid game state for player '" + target_player + "': " + game_data.error_message);
+            }
+        } catch (const std::exception& e) {
+            logger->error("Failed to get game state for player '" + target_player + "': " + e.what());
+        }
+    }
+    
+    logger->info("Player '" + player_name + "' picked up pile, returning " + std::to_string(responses.size()) + " messages");
+    
+    return responses;
 }
 
 std::vector<ProtocolMessage> MessageHandler::handlePlayCards(const ProtocolMessage& msg, const std::string& player_name) {
+    // 1. Extract cards from message
     std::string cards_str = MessageParser::extractDataField(msg, "cards");
     if (cards_str.empty()) {
         return {ProtocolHelper::createErrorResponse("No cards specified")};
     }
 
-    // Parse comma-separated cards
+    // 2. Parse comma-separated cards
     std::vector<std::string> cards;
     std::stringstream ss(cards_str);
     std::string card;
@@ -281,20 +310,66 @@ std::vector<ProtocolMessage> MessageHandler::handlePlayCards(const ProtocolMessa
         cards.push_back(card);
     }
 
-    // Get player's room
+    // 3. Get player's room
     std::string room_id = playerManager->getPlayerRoom(player_name);
     if (room_id.empty()) {
         return {ProtocolHelper::createErrorResponse("Not in any room")};
     }
 
-    // Use GameManager for game logic
+    // 4. Try to play cards via GameManager
     bool result = gameManager->playCards(roomManager, room_id, player_name, cards);
 
-    if (result) {
-        ProtocolMessage response = ProtocolHelper::createTurnResultResponse("play_success");
-        response.should_broadcast_to_room = true;
-        return {response};
-    } else {
+    if (!result) {
         return {ProtocolHelper::createErrorResponse("Invalid card play")};
     }
+    
+    // 5. Success! Build responses
+    std::vector<ProtocolMessage> responses;
+    
+    // a. Send TURN_RESULT confirmation to player who played
+    ProtocolMessage turn_result = ProtocolHelper::createTurnResultResponse("play_success");
+    turn_result.player_id = player_name;  // Targeted to player
+    responses.push_back(turn_result);
+    
+    // b. Check if game ended
+    if (gameManager->isGameOver(roomManager, room_id)) {
+        std::string winner = gameManager->getWinner(roomManager, room_id);
+        logger->info("Game over in room '" + room_id + "', winner: " + winner);
+        
+        // Send GAME_OVER to both players
+        std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
+        for (const std::string& target_player : room_players) {
+            ProtocolMessage game_over = ProtocolHelper::createGameOverResponse(winner);
+            game_over.player_id = target_player;
+            game_over.room_id = room_id;
+            responses.push_back(game_over);
+        }
+        
+        logger->info("Returning " + std::to_string(responses.size()) + " messages (game over)");
+        return responses;  // Game over, return early
+    }
+    
+    // c. Send updated GAME_STATE to all players
+    std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
+    
+    for (const std::string& target_player : room_players) {
+        try {
+            GameStateData game_data = gameManager->getGameStateForPlayer(roomManager, room_id, target_player);
+            
+            if (game_data.valid) {
+                ProtocolMessage game_state = ProtocolHelper::createGameStateResponse(target_player, room_id, game_data);
+                game_state.player_id = target_player;
+                responses.push_back(game_state);
+                logger->debug("Added game state for player '" + target_player + "'");
+            } else {
+                logger->error("Invalid game state for player '" + target_player + "': " + game_data.error_message);
+            }
+        } catch (const std::exception& e) {
+            logger->error("Failed to get game state for player '" + target_player + "': " + e.what());
+        }
+    }
+    
+    logger->info("Player '" + player_name + "' played cards, returning " + std::to_string(responses.size()) + " messages");
+    
+    return responses;
 }
