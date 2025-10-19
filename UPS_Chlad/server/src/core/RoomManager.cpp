@@ -104,30 +104,21 @@ std::vector<std::string> RoomManager::getRoomPlayers(const std::string& room_id)
 std::string RoomManager::joinAnyAvailableRoom(const std::string& player_name) {
     std::lock_guard<std::mutex> lock(rooms_mutex);
 
-    std::cout << "DEBUG: Looking for available room for player: " << player_name << std::endl;
-    std::cout << "DEBUG: Total rooms: " << rooms.size() << std::endl;
-
     // Look for rooms with exactly 1 player (available for second player)
     for (auto& pair : rooms) {
-        std::cout << "DEBUG: Room " << pair.first << " has " << pair.second.players.size() << " players" << std::endl;
 
         if (pair.second.players.size() == 1) {
-            std::cout << "DEBUG: Found available room: " << pair.first << std::endl;
             // Found room with 1 player - join it
             if (joinRoom(player_name, pair.first)) {
-                std::cout << "DEBUG: Successfully joined room: " << pair.first << std::endl;
                 return pair.first;  // Return room_id
             } else {
-                std::cout << "DEBUG: Failed to join room: " << pair.first << std::endl;
             }
         }
     }
 
     // No available rooms - create new empty room
-    std::cout << "DEBUG: No available rooms, creating new room" << std::endl;
     std::string new_room = createRoom();
     if (joinRoom(player_name, new_room)) {
-        std::cout << "DEBUG: Created and joined new room: " << new_room << std::endl;
         return new_room;
     }
     return "";  // Failed to join any room

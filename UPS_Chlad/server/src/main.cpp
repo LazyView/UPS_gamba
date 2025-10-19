@@ -20,46 +20,6 @@
 #include <csignal>
 #include <atomic>
 
-// Simple test function to verify modular components work
-void testModularComponents() {
-    std::cout << "=== Testing Modular Components ===" << std::endl;
-
-    // Test Logger
-    Logger logger("test.log");
-    logger.info("Logger test - modular architecture working");
-
-    // Test PlayerManager
-    PlayerManager playerManager;
-    std::string result = playerManager.connectPlayer("TestPlayer", 1);
-    std::cout << "PlayerManager test: " << (result.empty() ? "FAILED" : "SUCCESS") << std::endl;
-
-    // Test RoomManager - FIXED: no parameter
-    RoomManager roomManager;
-    std::string room_id = roomManager.createRoom();
-    std::cout << "RoomManager test: " << (room_id.empty() ? "FAILED" : "SUCCESS") << std::endl;
-
-    // Test MessageValidator
-    MessageValidator validator;
-    bool valid = validator.isValidFormat("1|player1||name=test");
-    std::cout << "MessageValidator test: " << (valid ? "SUCCESS" : "FAILED") << std::endl;
-
-    // Test ProtocolMessage
-    ProtocolMessage msg(MessageType::CONNECT);
-    msg.setData("name", "TestPlayer");
-    std::string serialized = msg.serialize();
-    std::cout << "ProtocolMessage test: " << (!serialized.empty() ? "SUCCESS" : "FAILED") << std::endl;
-
-    // Test GameManager - ADDED
-    GameManager gameManager;
-    std::cout << "GameManager test: SUCCESS (initialized)" << std::endl;
-
-    // Test MessageHandler - FIXED: added GameManager
-    MessageHandler messageHandler(&playerManager, &roomManager, &validator, &logger, &gameManager);
-    std::cout << "MessageHandler test: SUCCESS (initialized)" << std::endl;
-
-    std::cout << "=== All modular components initialized successfully ===" << std::endl;
-}
-
 // Global variable for graceful shutdown
 std::atomic<bool> server_running(true);
 
@@ -97,7 +57,7 @@ int main(int argc, char* argv[]) {
     try {
         // Initialize all components
         Logger logger(config.log_file);
-        logger.setLogLevel(LogLevel::DEBUG);
+        logger.setLogLevel(LogLevel::INFO);
         logger.setLogToFile(config.enable_file_logging);
         PlayerManager playerManager;
         RoomManager roomManager;

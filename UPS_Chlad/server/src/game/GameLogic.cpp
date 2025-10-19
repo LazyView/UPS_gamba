@@ -123,17 +123,6 @@ bool GameLogic::playCards(const std::string& playerId, const std::vector<Card>& 
 
     PlayerHand& player = players[playerIndex];
 
-    // DEBUG: Log what we're trying to play
-    std::cout << "DEBUG playCards: Player " << playerId << " trying to play " << cardsToPlay.size() << " cards" << std::endl;
-    for (const Card& c : cardsToPlay) {
-        std::cout << "  Card: " << c.toString() << std::endl;
-    }
-    std::cout << "  Player hand before:";
-    for (const Card& c : player.hand) {
-        std::cout << " " << c.toString();
-    }
-    std::cout << std::endl;
-
     // Validate cards are in player's hand
     for (const Card& card : cardsToPlay) {
         auto it = std::find_if(player.hand.begin(), player.hand.end(),
@@ -141,7 +130,6 @@ bool GameLogic::playCards(const std::string& playerId, const std::vector<Card>& 
                 return handCard.suit == card.suit && handCard.rank == card.rank;
             });
         if (it == player.hand.end()) {
-            std::cout << "DEBUG: Card " << card.toString() << " not in hand!" << std::endl;
             return false; // Card not in hand
         }
     }
@@ -149,7 +137,6 @@ bool GameLogic::playCards(const std::string& playerId, const std::vector<Card>& 
     // Validate play using GameRules
     Card topCard = discardPile.empty() ? Card(Suit::HEARTS, Rank::ACE) : getTopDiscardCard();
     if (!GameRules::isValidPlay(cardsToPlay, topCard, mustPlaySevenOrLower)) {
-        std::cout << "DEBUG: Invalid play according to GameRules" << std::endl;
         return false;
     }
 
@@ -160,17 +147,9 @@ bool GameLogic::playCards(const std::string& playerId, const std::vector<Card>& 
                 return handCard.suit == card.suit && handCard.rank == card.rank;
             });
         if (it != player.hand.end()) {
-            std::cout << "DEBUG: Removing card " << it->toString() << " from hand" << std::endl;
             player.hand.erase(it);
         }
     }
-
-    std::cout << "  Player hand after:";
-    for (const Card& c : player.hand) {
-        std::cout << " " << c.toString();
-    }
-    std::cout << std::endl;
-
     // Add cards to discard pile
     for (const Card& card : cardsToPlay) {
         discardPile.push_back(card);

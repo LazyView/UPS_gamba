@@ -28,63 +28,35 @@ ProtocolMessage ProtocolMessage::parse(const std::string& message) {
     std::istringstream iss(message);
     std::string token;
 
-    // DEBUG: Show what we're parsing
-    #ifdef DEBUG_PROTOCOL
-    std::cout << "PARSING: '" << message << "'" << std::endl;
-    #endif
-
     try {
         // Parse message type
         if (std::getline(iss, token, '|')) {
             msg.type = static_cast<MessageType>(std::stoi(token));
-            #ifdef DEBUG_PROTOCOL
-            std::cout << "   Type: " << token << std::endl;
-            #endif
         }
 
         // Parse player ID
         if (std::getline(iss, token, '|')) {
             msg.player_id = token;
-            #ifdef DEBUG_PROTOCOL
-            std::cout << "   Player ID: '" << token << "'" << std::endl;
-            #endif
         }
 
         // Parse room ID
         if (std::getline(iss, token, '|')) {
             msg.room_id = token;
-            #ifdef DEBUG_PROTOCOL
-            std::cout << "   Room ID: '" << token << "'" << std::endl;
-            #endif
         }
 
         // Parse key-value pairs
         int kvp_count = 0;
         while (std::getline(iss, token, '|')) {
             kvp_count++;
-            #ifdef DEBUG_PROTOCOL
-            std::cout << "   KVP #" << kvp_count << ": '" << token << "'" << std::endl;
-            #endif
 
             size_t pos = token.find('=');
             if (pos != std::string::npos) {
                 std::string key = token.substr(0, pos);
                 std::string value = token.substr(pos + 1);
-                #ifdef DEBUG_PROTOCOL
-                std::cout << "     Key: '" << key << "', Value: '" << value << "'" << std::endl;
-                #endif
                 msg.data[key] = value;
             }
         }
-
-        #ifdef DEBUG_PROTOCOL
-        std::cout << "   Total KVPs found: " << kvp_count << std::endl;
-        #endif
-
     } catch (const std::exception& e) {
-        #ifdef DEBUG_PROTOCOL
-        std::cout << "PARSE ERROR: " << e.what() << std::endl;
-        #endif
         msg.type = MessageType::ERROR_MSG;
         msg.data["error"] = "Invalid message format";
     }
