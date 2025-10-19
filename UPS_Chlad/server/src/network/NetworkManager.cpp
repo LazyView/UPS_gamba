@@ -319,8 +319,32 @@ void NetworkManager::handleClient(int client_socket) {
                             
                             // Check if client should be disconnected
                             if (response.hasData("disconnect") && response.getData("disconnect") == "true") {
-                                logger->info("Disconnecting client " + std::to_string(client_socket) + " as requested");
+                                logger->info("Disconnecting client " + std::to_string(client_socket) + " due to invalid message");
+                                
+                                // Mark player as temporarily disconnected before closing socket
+                                std::string disconnected_player = playerManager->getPlayerIdFromSocket(client_socket);
+                                if (!disconnected_player.empty()) {
+                                    std::string room_id = playerManager->getPlayerRoom(disconnected_player);
+                                    playerManager->markPlayerTemporarilyDisconnected(disconnected_player);
+                                    
+                                    // Broadcast disconnection to room
+                                    if (!room_id.empty()) {
+                                        ProtocolMessage disconnect_broadcast(MessageType::PLAYER_DISCONNECTED);
+                                        disconnect_broadcast.player_id = disconnected_player;
+                                        disconnect_broadcast.room_id = room_id;
+                                        disconnect_broadcast.setData("disconnected_player", disconnected_player);
+                                        disconnect_broadcast.setData("status", "invalid_message");
+                                        
+                                        broadcastToRoom(room_id, disconnect_broadcast, disconnected_player);
+                                    }
+                                }
+                                
+                                // Remove socket mapping
+                                playerManager->removeSocketMapping(client_socket);
+                                
+                                // Close socket and exit
                                 shutdown(client_socket, SHUT_RDWR);
+                                close(client_socket);
                                 return;  // Exit handleClient immediately
                             }
                         }
@@ -457,10 +481,67 @@ void NetworkManager::heartbeatMonitorLoop() {
                 logger->info("Player '" + player_name + "' reconnection window expired - cleaning up");
 
                 std::string room_id = playerManager->getPlayerRoom(player_name);
-                if (!room_id.empty()) {
+                
+                if (!room_id.empty() && room_id != "lobby") {
+                    // Get remaining players before cleanup
+                    std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
+                    
+                    // Check if game was active
+                    bool game_was_active = false;
+                    roomManager->withRoom(room_id, [&](Room* room) -> bool {
+                        if (room) {
+                            game_was_active = room->isGameActive();
+                        }
+                        return true;
+                    });
+                    
+                    // Remove the disconnected player from room
                     roomManager->handlePlayerTimeout(player_name, room_id);
+                    
+                    // If game was active, notify remaining players and end the game
+                    if (game_was_active) {
+                        for (const std::string& remaining_player : room_players) {
+                            if (remaining_player != player_name) {
+                                logger->info("Notifying player '" + remaining_player + "' that game ended due to opponent timeout");
+                                
+                                // Get player socket
+                                auto player_opt = playerManager->getPlayer(remaining_player);
+                                if (player_opt.has_value() && player_opt->connected && player_opt->socket_fd != -1) {
+                                    // Send GAME_OVER message
+                                    ProtocolMessage game_over(MessageType::GAME_OVER);
+                                    game_over.player_id = remaining_player;
+                                    game_over.room_id = room_id;
+                                    game_over.setData("winner", remaining_player);
+                                    game_over.setData("reason", "opponent_disconnect");
+                                    game_over.setData("status", "game_over");
+                                    
+                                    std::string game_over_msg = game_over.serialize() + "\n";
+                                    send(player_opt->socket_fd, game_over_msg.c_str(), game_over_msg.length(), MSG_NOSIGNAL);
+                                    
+                                    // Send ROOM_LEFT message (back to lobby)
+                                    ProtocolMessage room_left(MessageType::ROOM_LEFT);
+                                    room_left.player_id = remaining_player;
+                                    room_left.room_id = "";
+                                    room_left.setData("status", "left");
+                                    
+                                    std::string room_left_msg = room_left.serialize() + "\n";
+                                    send(player_opt->socket_fd, room_left_msg.c_str(), room_left_msg.length(), MSG_NOSIGNAL);
+                                    
+                                    // Clear player's room assignment
+                                    playerManager->clearPlayerRoom(remaining_player);
+                                    
+                                    logger->info("Player '" + remaining_player + "' returned to lobby after opponent timeout");
+                                }
+                            }
+                        }
+                        
+                        // Delete the room
+                        roomManager->deleteRoom(room_id);
+                        logger->info("Room '" + room_id + "' deleted after long-term disconnection");
+                    }
                 }
                 
+                // Remove disconnected player
                 playerManager->clearPlayerRoom(player_name);
                 playerManager->removePlayer(player_name);
             }

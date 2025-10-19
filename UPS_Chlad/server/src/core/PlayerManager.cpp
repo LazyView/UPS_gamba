@@ -13,17 +13,9 @@ std::string PlayerManager::connectPlayer(const std::string& player_name, int cli
     auto it = players.find(player_name);
 
     if (it != players.end()) {
-        if (it->second.connected) {
-            return "";  // Already connected
-        } else {
-            // Reconnect existing player
-            it->second.connected = true;
-            it->second.socket_fd = client_socket;
-            socket_to_player[client_socket] = player_name;
-            // Update heartbeat here for simplicity
-            updateLastPing(player_name);
-            return player_name;
-        }
+        // Player already exists - reject connection
+        // They must use RECONNECT message instead
+        return "";
     } else {
         // Add new player
         players.emplace(player_name, Player(player_name, client_socket));

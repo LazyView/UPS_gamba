@@ -196,7 +196,21 @@ std::vector<ProtocolMessage> MessageHandler::handleReconnect(const ProtocolMessa
         if (!room_id.empty() && room_id != "lobby") {
             logger->info("Player '" + player_name + "' was in room '" + room_id + "', restoring state");
             
-            // 3. Check if game is active in the room
+            // 3. Notify other players in room about reconnection (ALWAYS, regardless of game state)
+            std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
+            for (const std::string& other_player : room_players) {
+                if (other_player != player_name) {
+                    ProtocolMessage reconnect_notification(MessageType::PLAYER_RECONNECTED);
+                    reconnect_notification.player_id = other_player;
+                    reconnect_notification.room_id = room_id;
+                    reconnect_notification.setData("reconnected_player", player_name);
+                    reconnect_notification.setData("status", "reconnected");
+                    responses.push_back(reconnect_notification);
+                    logger->debug("Added reconnection notification for player '" + other_player + "'");
+                }
+            }
+            
+            // 4. Check if game is active - if so, send game state
             if (gameManager->isGameActive(roomManager, room_id)) {
                 logger->info("Game is active, sending current game state to '" + player_name + "'");
                 
@@ -212,19 +226,6 @@ std::vector<ProtocolMessage> MessageHandler::handleReconnect(const ProtocolMessa
                     }
                 } catch (const std::exception& e) {
                     logger->error("Failed to get game state for reconnected player: " + std::string(e.what()));
-                }
-                
-                // 4. Notify other players in room about reconnection
-                std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
-                for (const std::string& other_player : room_players) {
-                    if (other_player != player_name) {
-                        ProtocolMessage reconnect_notification(MessageType::PLAYER_RECONNECTED);
-                        reconnect_notification.player_id = other_player;
-                        reconnect_notification.room_id = room_id;
-                        reconnect_notification.setData("reconnected_player", player_name);
-                        reconnect_notification.setData("status", "reconnected");
-                        responses.push_back(reconnect_notification);
-                    }
                 }
             } else {
                 logger->info("No active game in room '" + room_id + "'");

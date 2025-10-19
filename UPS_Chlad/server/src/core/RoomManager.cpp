@@ -161,20 +161,23 @@ void RoomManager::handlePlayerTimeout(const std::string& player_name, const std:
         if (room_it != rooms.end()) {
             Room& room = room_it->second;
 
+            // Check if game was active before removing player
+            bool game_was_active = room.isGameActive();
+
             // Remove player from room
             auto it = std::find(room.players.begin(), room.players.end(), player_name);
             if (it != room.players.end()) {
                 room.players.erase(it);
 
-                // If room becomes empty, mark it for cleanup
+                // If room becomes empty, delete it
                 if (room.players.empty()) {
                     rooms.erase(room_it);
-                } else {
-                    // If game was in progress and only one player remains, reset the game
-                    if (room.isGameActive() && room.players.size() == 1) {
-                        room.resetGame();
-                        // The remaining player should be returned to waiting state
-                    }
+                } else if (game_was_active && room.players.size() == 1) {
+                    // Game was active and only one player remains
+                    // The game must end (can't continue with 1 player)
+                    // Note: Notification is handled by NetworkManager
+                    room.resetGame();
+                    // Room will be deleted after notification
                 }
             }
         }
