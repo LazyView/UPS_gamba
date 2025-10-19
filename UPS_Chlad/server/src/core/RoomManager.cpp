@@ -16,6 +16,18 @@ std::string RoomManager::createRoom() {
     return room_name;
 }
 
+bool RoomManager::deleteRoom(const std::string& room_id) {
+    std::lock_guard<std::mutex> lock(rooms_mutex);
+    
+    auto room_it = rooms.find(room_id);
+    if (room_it == rooms.end()) {
+        return false;  // Room doesn't exist
+    }
+    
+    rooms.erase(room_it);
+    return true;
+}
+
 bool RoomManager::roomExists(const std::string& room_id) {
     std::lock_guard<std::mutex> lock(rooms_mutex);
     return rooms.find(room_id) != rooms.end();

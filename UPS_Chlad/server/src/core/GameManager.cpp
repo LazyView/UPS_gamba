@@ -4,6 +4,7 @@
 #include "../game/CardDeck.h"
 #include "../game/GameLogic.h"
 #include <stdexcept>
+#include <iostream>
 
 GameManager::GameManager() {
 }
@@ -14,7 +15,13 @@ bool GameManager::playCards(RoomManager* roomManager, const std::string& room_id
     return roomManager->withRoom(room_id, [&](Room* room) -> bool {
         if (!room || !room->isGameActive()) return false;
         
-        // Convert protocol strings to domain objects
+        // Check if player is trying to play from reserves
+        if (card_strings.size() == 1 && card_strings[0] == "RESERVE") {
+            // Player wants to play from reserves
+            return room->gameLogic->playFromReserve(player_name);
+        }
+        
+        // Normal card play - convert protocol strings to domain objects
         std::vector<Card> cardObjects;
         for (const std::string& cardStr : card_strings) {
             Card card = parseCardFromString(cardStr);
@@ -127,25 +134,34 @@ std::string GameManager::getCurrentPlayer(RoomManager* roomManager, const std::s
 
 bool GameManager::isGameOver(RoomManager* roomManager, const std::string& room_id) {
     return roomManager->withRoom(room_id, [](Room* room) -> bool {
-        if (!room || !room->isGameActive()) return false;
+        if (!room) {
+            std::cout << "DEBUG isGameOver: room not found" << std::endl;
+            return false;
+        }
+        
+        std::cout << "DEBUG isGameOver: checking game state" << std::endl;
         
         // Check if any player has won (no cards left)
         for (const std::string& player : room->players) {
             int hand_size = room->gameLogic->getPlayerHandSize(player);
             int reserve_size = room->gameLogic->getPlayerReserveSize(player);
             
+            std::cout << "  Player '" << player << "': hand=" << hand_size << ", reserves=" << reserve_size << std::endl;
+            
             if (hand_size == 0 && reserve_size == 0) {
+                std::cout << "  -> GAME OVER! Winner: " << player << std::endl;
                 return true;  // Game over, this player won
             }
         }
         
+        std::cout << "  -> Game continues" << std::endl;
         return false;
     });
 }
 
 std::string GameManager::getWinner(RoomManager* roomManager, const std::string& room_id) {
     return roomManager->withRoom(room_id, [](Room* room) -> std::string {
-        if (!room || !room->isGameActive()) return "";
+        if (!room) return "";
         
         // Find player with no cards left
         for (const std::string& player : room->players) {
@@ -184,6 +200,7 @@ Card GameManager::parseCardFromString(const std::string& cardStr) {
     
     if (rankStr == "A") {
         rank = Rank::ACE;
+        std::cout << "DEBUG parseCard: Parsed '" << cardStr << "' as ACE (value=" << static_cast<int>(Rank::ACE) << ")" << std::endl;
     } else if (rankStr == "J") {
         rank = Rank::JACK;
     } else if (rankStr == "Q") {
@@ -203,7 +220,9 @@ Card GameManager::parseCardFromString(const std::string& cardStr) {
         }
     }
 
-    return Card(suit, rank);
+    Card result(suit, rank);
+    std::cout << "DEBUG parseCard: Created card, toString()=" << result.toString() << ", getValue()=" << result.getValue() << std::endl;
+    return result;
 }
 
 std::vector<std::string> GameManager::convertCardsToStrings(const std::vector<Card>& cards) {

@@ -4,6 +4,7 @@
 
 #include "GameRules.h"
 #include <algorithm>
+#include <iostream>
 
 bool GameRules::isValidPlay(const std::vector<Card>& cardsToPlay, const Card& topCard, bool mustPlaySevenOrLower) {
     if (cardsToPlay.empty()) {
@@ -42,23 +43,41 @@ bool GameRules::areMultipleCardsValid(const std::vector<Card>& cards) {
 }
 
 bool GameRules::canPlayOn(const Card& cardToPlay, const Card& topCard, bool mustPlaySevenOrLower) {
+    // Debug output
+    std::cout << "DEBUG canPlayOn: Playing " << cardToPlay.toString() << " (value=" << cardToPlay.getValue() 
+              << ") on " << topCard.toString() << " (value=" << topCard.getValue() << ")" << std::endl;
+    std::cout << "  mustPlaySevenOrLower=" << (mustPlaySevenOrLower ? "true" : "false") << std::endl;
+    
     // 2 is always a wild card - can be played on anything
     if (isWildCard(cardToPlay)) {
+        std::cout << "  -> Card to play is wild (2), VALID" << std::endl;
+        return true;
+    }
+    
+    // If top card is a 2 (wild card), any card can be played on it
+    if (isWildCard(topCard)) {
+        std::cout << "  -> Top card is wild (2), VALID" << std::endl;
         return true;
     }
 
     // If must play 7 or lower (after a 7 was played)
     if (mustPlaySevenOrLower) {
-        return cardToPlay.getValue() <= 7;
+        bool result = cardToPlay.getValue() <= 7;
+        std::cout << "  -> Must play 7 or lower: " << (result ? "VALID" : "INVALID") << std::endl;
+        return result;
     }
 
     // 10 can always be played (burn card)
     if (isBurnCard(cardToPlay)) {
+        std::cout << "  -> Card to play is 10 (burn), VALID" << std::endl;
         return true;
     }
 
     // Normal rule: card must be higher or equal value
-    return isHigherOrEqual(cardToPlay, topCard);
+    bool result = isHigherOrEqual(cardToPlay, topCard);
+    std::cout << "  -> Normal rule (" << cardToPlay.getValue() << " >= " << topCard.getValue() << "): " 
+              << (result ? "VALID" : "INVALID") << std::endl;
+    return result;
 }
 
 bool GameRules::isHigherOrEqual(const Card& cardToPlay, const Card& topCard) {

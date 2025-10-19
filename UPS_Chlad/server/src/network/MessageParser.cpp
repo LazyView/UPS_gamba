@@ -14,10 +14,8 @@ bool MessageParser::requiresActivePlayer(MessageType type){
 std::string MessageParser::getPlayerNameFromMessage(const ProtocolMessage& msg) {
     switch (msg.getType()) {
         case MessageType::CONNECT:
-            return msg.getData("name");
-
         case MessageType::RECONNECT:
-            return msg.player_id;
+            return msg.getData("name");  // Both use the same format: name=<player>
 
         default:
             return "";

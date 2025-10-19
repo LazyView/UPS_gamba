@@ -128,6 +128,16 @@ std::vector<ProtocolMessage> MessageHandler::handleConnect(const ProtocolMessage
 
 std::vector<ProtocolMessage> MessageHandler::handleJoinRoom(const std::string& player_name) {
     logger->debug("handleJoinRoom: called for player '" + player_name + "'");
+    
+    // DEBUG: Check player state
+    auto player_opt = playerManager->getPlayer(player_name);
+    if (player_opt.has_value()) {
+        logger->debug("  Player found: connected=" + std::string(player_opt->connected ? "true" : "false") + 
+                     ", room_id='" + player_opt->room_id + "', socket=" + std::to_string(player_opt->socket_fd));
+    } else {
+        logger->error("  Player not found in PlayerManager!");
+    }
+    
     std::string assigned_room = roomManager->joinAnyAvailableRoom(player_name);
 
     if (!assigned_room.empty()) {
@@ -172,10 +182,58 @@ std::vector<ProtocolMessage> MessageHandler::handleReconnect(const ProtocolMessa
     // Try to reconnect existing temporarily disconnected player
     if (playerManager->reconnectPlayer(player_name, client_socket)) {
         logger->info("Player '" + player_name + "' reconnected successfully");
-
-        ProtocolMessage response = ProtocolHelper::createConnectedResponse(player_name, player_name);
-        response.should_broadcast_to_room = true;
-        return {response};
+        
+        std::vector<ProtocolMessage> responses;
+        
+        // 1. Send CONNECTED response to reconnecting player
+        ProtocolMessage connected = ProtocolHelper::createConnectedResponse(player_name, player_name);
+        connected.player_id = player_name;
+        responses.push_back(connected);
+        
+        // 2. Get player's room
+        std::string room_id = playerManager->getPlayerRoom(player_name);
+        
+        if (!room_id.empty() && room_id != "lobby") {
+            logger->info("Player '" + player_name + "' was in room '" + room_id + "', restoring state");
+            
+            // 3. Check if game is active in the room
+            if (gameManager->isGameActive(roomManager, room_id)) {
+                logger->info("Game is active, sending current game state to '" + player_name + "'");
+                
+                // Send current game state to reconnected player
+                try {
+                    GameStateData game_data = gameManager->getGameStateForPlayer(roomManager, room_id, player_name);
+                    
+                    if (game_data.valid) {
+                        ProtocolMessage game_state = ProtocolHelper::createGameStateResponse(player_name, room_id, game_data);
+                        game_state.player_id = player_name;
+                        responses.push_back(game_state);
+                        logger->debug("Sent game state to reconnected player '" + player_name + "'");
+                    }
+                } catch (const std::exception& e) {
+                    logger->error("Failed to get game state for reconnected player: " + std::string(e.what()));
+                }
+                
+                // 4. Notify other players in room about reconnection
+                std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
+                for (const std::string& other_player : room_players) {
+                    if (other_player != player_name) {
+                        ProtocolMessage reconnect_notification(MessageType::PLAYER_RECONNECTED);
+                        reconnect_notification.player_id = other_player;
+                        reconnect_notification.room_id = room_id;
+                        reconnect_notification.setData("reconnected_player", player_name);
+                        reconnect_notification.setData("status", "reconnected");
+                        responses.push_back(reconnect_notification);
+                    }
+                }
+            } else {
+                logger->info("No active game in room '" + room_id + "'");
+            }
+        } else {
+            logger->info("Player '" + player_name + "' was in lobby, no game state to restore");
+        }
+        
+        return responses;
     } else {
         logger->warning("Reconnection failed for player '" + player_name + "' - not found or not disconnected");
         return {ProtocolHelper::createErrorResponse("Reconnection failed - player not found or session expired")};
@@ -308,7 +366,10 @@ std::vector<ProtocolMessage> MessageHandler::handlePlayCards(const ProtocolMessa
     std::string card;
     while (std::getline(ss, card, ',')) {
         cards.push_back(card);
+        logger->debug("Parsed card from message: '" + card + "'");
     }
+    
+    logger->info("Player '" + player_name + "' attempting to play " + std::to_string(cards.size()) + " cards: " + cards_str);
 
     // 3. Get player's room
     std::string room_id = playerManager->getPlayerRoom(player_name);
@@ -316,7 +377,7 @@ std::vector<ProtocolMessage> MessageHandler::handlePlayCards(const ProtocolMessa
         return {ProtocolHelper::createErrorResponse("Not in any room")};
     }
 
-    // 4. Try to play cards via GameManager
+    // 4. Try to play cards via GameManager (handles both normal and reserve plays)
     bool result = gameManager->playCards(roomManager, room_id, player_name, cards);
 
     if (!result) {
@@ -331,13 +392,15 @@ std::vector<ProtocolMessage> MessageHandler::handlePlayCards(const ProtocolMessa
     turn_result.player_id = player_name;  // Targeted to player
     responses.push_back(turn_result);
     
-    // b. Check if game ended
+    // b. Check if game ended (works for both normal cards AND reserve cards)
     if (gameManager->isGameOver(roomManager, room_id)) {
         std::string winner = gameManager->getWinner(roomManager, room_id);
         logger->info("Game over in room '" + room_id + "', winner: " + winner);
         
-        // Send GAME_OVER to both players
+        // Get room players before cleanup
         std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
+        
+        // Send GAME_OVER to both players
         for (const std::string& target_player : room_players) {
             ProtocolMessage game_over = ProtocolHelper::createGameOverResponse(winner);
             game_over.player_id = target_player;
@@ -345,8 +408,22 @@ std::vector<ProtocolMessage> MessageHandler::handlePlayCards(const ProtocolMessa
             responses.push_back(game_over);
         }
         
+        // Send ROOM_LEFT to both players (they're back in lobby)
+        for (const std::string& target_player : room_players) {
+            ProtocolMessage room_left = ProtocolHelper::createRoomLeftResponse(target_player);
+            room_left.player_id = target_player;
+            responses.push_back(room_left);
+            
+            // Clear player's room assignment
+            playerManager->clearPlayerRoom(target_player);
+        }
+        
+        // Delete the room
+        roomManager->deleteRoom(room_id);
+        
+        logger->info("Room '" + room_id + "' deleted, players returned to lobby");
         logger->info("Returning " + std::to_string(responses.size()) + " messages (game over)");
-        return responses;  // Game over, return early
+        return responses;
     }
     
     // c. Send updated GAME_STATE to all players

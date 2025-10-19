@@ -57,6 +57,7 @@ public:
 
     // Game actions
     bool playCards(const std::string& playerId, const std::vector<Card>& cardsToPlay);
+    bool playFromReserve(const std::string& playerId);  // NEW: Play blind from reserve cards
     bool pickupDiscardPile(const std::string& playerId);
 
     // Turn management
