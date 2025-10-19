@@ -18,6 +18,10 @@ struct ServerConfig {
     std::string log_file = "logs/gamba_server.log";
     bool enable_file_logging = true;
 
+    // Heartbeat timeout settings
+    int player_timeout_seconds = 60;        // How long before player is considered disconnected
+    int heartbeat_check_interval = 10;      // How often to check for timeouts (in seconds)
+
     bool loadFromFile(const std::string& filename);
     void parseCommandLine(int argc, char* argv[]);
     void printUsage(const char* program_name);
