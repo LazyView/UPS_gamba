@@ -179,6 +179,14 @@ std::vector<ProtocolMessage> MessageHandler::handleReconnect(const ProtocolMessa
         return {ProtocolHelper::createErrorResponse("Player name required")};
     }
 
+    // Security check: Verify this socket isn't already connected as someone else
+    std::string current_player = playerManager->getPlayerIdFromSocket(client_socket);
+    if (!current_player.empty() && current_player != player_name) {
+        logger->warning("Player '" + current_player + "' on socket " + std::to_string(client_socket) + 
+                       " attempted to reconnect as '" + player_name + "' - rejected");
+        return {ProtocolHelper::createErrorResponse("Cannot reconnect as different player. Disconnect first.")};
+    }
+
     // Try to reconnect existing temporarily disconnected player
     if (playerManager->reconnectPlayer(player_name, client_socket)) {
         logger->info("Player '" + player_name + "' reconnected successfully");
