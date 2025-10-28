@@ -55,6 +55,13 @@ public:
     bool start();        // Create and bind socket
     void run();          // Main accept loop
     void stop();         // Stop server gracefully
+    /**
+    * Broadcasting to all players in the room. Retrieves all room players and tries to send message to all of them except the requester.
+    * Validates the count of sent messages against number of players in the room - 1
+    * @param room_id - room to broadcast to
+    * @param message - message to be broadcasted
+    * @param excluded_player - requester that wont receive broadcasted message
+    */
     void broadcastToRoom(const std::string& room_id, const ProtocolMessage& message, const std::string& exclude_player = "");
 
 private:
@@ -64,8 +71,18 @@ private:
     void cleanup();                        // Clean shutdown
 
     // Heartbeat monitoring
+    /*
+    * Inicializes heartbeat for u Player
+    */
     void startHeartbeatMonitor();          // Start heartbeat monitoring thread
+    /*
+    * stop Heartbeat monitoring
+    */
     void stopHeartbeatMonitor();           // Stop heartbeat monitoring thread
+    /*
+    * Loop that takes care of players heartbeat, if server didnt receive ping for a 60s, marks player as afk (short-term).
+    * After 120s removes player from game and server (long-term).
+    */
     void heartbeatMonitorLoop();           // Main heartbeat monitoring loop
 };
 
