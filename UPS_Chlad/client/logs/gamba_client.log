@@ -1,0 +1,248 @@
+2025-11-03 12:52:35 - GambaClient - INFO - ======================================================================
+2025-11-03 12:52:35 - GambaClient - INFO - Gamba Client Logger Initialized
+2025-11-03 12:52:35 - GambaClient - INFO - ======================================================================
+2025-11-03 12:52:35 - GambaClient - INFO - ConnectionManager initialized
+2025-11-03 12:52:35 - GambaClient - INFO - MainWindow initialized
+2025-11-03 12:52:35 - GambaClient - INFO - Configuration loaded from gamba_client.conf
+2025-11-03 12:52:37 - GambaClient - INFO - Configuration saved to gamba_client.conf
+2025-11-03 12:52:37 - GambaClient - INFO - Connection requested: 127.0.0.1:8080 as 'User1'
+2025-11-03 12:52:37 - GambaClient - INFO - State: DISCONNECTED → CONNECTING
+2025-11-03 12:52:37 - GambaClient - INFO - State changed: DISCONNECTED → CONNECTING
+2025-11-03 12:52:37 - GambaClient - INFO - NetworkClient initialized for 127.0.0.1:8080
+2025-11-03 12:52:37 - GambaClient - INFO - Initiating connection to 127.0.0.1:8080
+2025-11-03 12:52:37 - GambaClient - INFO - NetworkClient thread started
+2025-11-03 12:52:37 - GambaClient - INFO - Connection: CONNECTED - 127.0.0.1:8080
+2025-11-03 12:52:37 - GambaClient - INFO - Network connected
+2025-11-03 12:52:37 - GambaClient - DEBUG - → SEND: 0|||name=User1
+2025-11-03 12:52:37 - GambaClient - DEBUG - ← RECV: 100|User1||name=User1|status=success
+2025-11-03 12:52:37 - GambaClient - INFO - Connection successful
+2025-11-03 12:52:37 - GambaClient - INFO - State: CONNECTING → CONNECTED
+2025-11-03 12:52:37 - GambaClient - INFO - State changed: CONNECTING → CONNECTED
+2025-11-03 12:52:37 - GambaClient - INFO - HeartbeatManager initialized
+2025-11-03 12:52:37 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:52:37 - GambaClient - DEBUG - PING sent
+2025-11-03 12:52:37 - GambaClient - INFO - Heartbeat started (PING every 10s)
+2025-11-03 12:52:37 - GambaClient - INFO - Connection: HEARTBEAT_STARTED
+2025-11-03 12:52:37 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:52:37 - GambaClient - DEBUG - PONG received (RTT: 0.007s)
+2025-11-03 12:52:37 - GambaClient - DEBUG - → SEND: 2|||
+2025-11-03 12:52:37 - GambaClient - DEBUG - ← RECV: 101|User1|ROOM_1|player_count=1|players=User1|room_full=false|status=success
+2025-11-03 12:52:37 - GambaClient - INFO - State: CONNECTED → IN_ROOM
+2025-11-03 12:52:37 - GambaClient - INFO - State changed: CONNECTED → IN_ROOM
+2025-11-03 12:52:37 - GambaClient - INFO - Showing lobby screen
+2025-11-03 12:52:37 - GambaClient - INFO - LobbyWidget initialized
+2025-11-03 12:52:37 - GambaClient - INFO - Lobby updated: ROOM_1, 1/2 players
+2025-11-03 12:52:40 - GambaClient - INFO - ======================================================================
+2025-11-03 12:52:40 - GambaClient - INFO - Gamba Client Logger Initialized
+2025-11-03 12:52:40 - GambaClient - INFO - ======================================================================
+2025-11-03 12:52:40 - GambaClient - INFO - ConnectionManager initialized
+2025-11-03 12:52:40 - GambaClient - INFO - MainWindow initialized
+2025-11-03 12:52:40 - GambaClient - INFO - Configuration loaded from gamba_client.conf
+2025-11-03 12:52:41 - GambaClient - INFO - Configuration saved to gamba_client.conf
+2025-11-03 12:52:41 - GambaClient - INFO - Connection requested: 127.0.0.1:8080 as 'User2'
+2025-11-03 12:52:41 - GambaClient - INFO - State: DISCONNECTED → CONNECTING
+2025-11-03 12:52:41 - GambaClient - INFO - State changed: DISCONNECTED → CONNECTING
+2025-11-03 12:52:41 - GambaClient - INFO - NetworkClient initialized for 127.0.0.1:8080
+2025-11-03 12:52:41 - GambaClient - INFO - Initiating connection to 127.0.0.1:8080
+2025-11-03 12:52:41 - GambaClient - INFO - NetworkClient thread started
+2025-11-03 12:52:41 - GambaClient - INFO - Connection: CONNECTED - 127.0.0.1:8080
+2025-11-03 12:52:41 - GambaClient - INFO - Network connected
+2025-11-03 12:52:41 - GambaClient - DEBUG - → SEND: 0|||name=User2
+2025-11-03 12:52:42 - GambaClient - DEBUG - ← RECV: 100|User2||name=User2|status=success
+2025-11-03 12:52:42 - GambaClient - INFO - Connection successful
+2025-11-03 12:52:42 - GambaClient - INFO - State: CONNECTING → CONNECTED
+2025-11-03 12:52:42 - GambaClient - INFO - State changed: CONNECTING → CONNECTED
+2025-11-03 12:52:42 - GambaClient - INFO - HeartbeatManager initialized
+2025-11-03 12:52:42 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:52:42 - GambaClient - DEBUG - PING sent
+2025-11-03 12:52:42 - GambaClient - INFO - Heartbeat started (PING every 10s)
+2025-11-03 12:52:42 - GambaClient - INFO - Connection: HEARTBEAT_STARTED
+2025-11-03 12:52:42 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:52:42 - GambaClient - DEBUG - PONG received (RTT: 0.008s)
+2025-11-03 12:52:42 - GambaClient - DEBUG - → SEND: 2|||
+2025-11-03 12:52:42 - GambaClient - DEBUG - ← RECV: 101|User2|ROOM_1|player_count=2|players=User1,User2|room_full=true|status=success
+2025-11-03 12:52:42 - GambaClient - INFO - State: CONNECTED → IN_ROOM
+2025-11-03 12:52:42 - GambaClient - DEBUG - ← RECV: 101|User2|ROOM_1|broadcast_type=room_notification|joined_player=User2|player_count=2|players=User1,User2|room_full=true|status=success
+2025-11-03 12:52:42 - GambaClient - INFO - State changed: CONNECTED → IN_ROOM
+2025-11-03 12:52:42 - GambaClient - INFO - Showing lobby screen
+2025-11-03 12:52:42 - GambaClient - INFO - Lobby updated: ROOM_1, 2/2 players
+2025-11-03 12:52:42 - GambaClient - INFO - Player joined: User2
+2025-11-03 12:52:42 - GambaClient - INFO - LobbyWidget initialized
+2025-11-03 12:52:42 - GambaClient - INFO - Lobby updated: ROOM_1, 2/2 players
+2025-11-03 12:52:43 - GambaClient - INFO - Start game requested from lobby
+2025-11-03 12:52:43 - GambaClient - INFO - Start game requested
+2025-11-03 12:52:43 - GambaClient - DEBUG - → SEND: 5|||
+2025-11-03 12:52:43 - GambaClient - DEBUG - ← RECV: 105||ROOM_1|status=started
+2025-11-03 12:52:43 - GambaClient - DEBUG - ← RECV: 105||ROOM_1|broadcast_type=room_notification|status=started
+2025-11-03 12:52:43 - GambaClient - INFO - State: IN_ROOM → IN_GAME
+2025-11-03 12:52:43 - GambaClient - INFO - State changed: IN_ROOM → IN_GAME
+2025-11-03 12:52:43 - GambaClient - INFO - State changed: IN_ROOM → IN_GAME
+2025-11-03 12:52:43 - GambaClient - INFO - Showing game screen
+2025-11-03 12:52:43 - GambaClient - DEBUG - ← RECV: 106|User1|ROOM_1|current_player=User1|deck_size=39|discard_pile_size=1|hand=8D,AS,7D|must_play_low=false|opponent_hand=3|opponent_name=User2|opponent_reserves=3|reserves=3|top_card=4H|your_turn=true
+2025-11-03 12:52:43 - GambaClient - INFO - Showing game screen
+2025-11-03 12:52:43 - GambaClient - DEBUG - ← RECV: 106|User2|ROOM_1|current_player=User1|deck_size=39|discard_pile_size=1|hand=KS,9S,AC|must_play_low=false|opponent_hand=3|opponent_name=User1|opponent_reserves=3|reserves=3|top_card=4H|your_turn=false
+2025-11-03 12:52:47 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:52:47 - GambaClient - DEBUG - PING sent
+2025-11-03 12:52:47 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:52:47 - GambaClient - DEBUG - PONG received (RTT: 0.000s)
+2025-11-03 12:52:50 - GambaClient - INFO - Play cards requested: 7D
+2025-11-03 12:52:50 - GambaClient - DEBUG - → SEND: 7|||cards=7D
+2025-11-03 12:52:50 - GambaClient - DEBUG - ← RECV: 111|User1||result=play_success|status=success
+2025-11-03 12:52:50 - GambaClient - DEBUG - ← RECV: 106|User2|ROOM_1|current_player=User2|deck_size=38|discard_pile_size=2|hand=KS,9S,AC|must_play_low=true|opponent_hand=3|opponent_name=User1|opponent_reserves=3|reserves=3|top_card=7D|your_turn=true
+2025-11-03 12:52:50 - GambaClient - DEBUG - ← RECV: 106|User1|ROOM_1|current_player=User2|deck_size=38|discard_pile_size=2|hand=8D,AS,KC|must_play_low=true|opponent_hand=3|opponent_name=User2|opponent_reserves=3|reserves=3|top_card=7D|your_turn=false
+2025-11-03 12:52:52 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:52:52 - GambaClient - DEBUG - PING sent
+2025-11-03 12:52:52 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:52:52 - GambaClient - DEBUG - PONG received (RTT: 0.005s)
+2025-11-03 12:52:56 - GambaClient - INFO - Pickup pile requested
+2025-11-03 12:52:56 - GambaClient - DEBUG - → SEND: 8|||
+2025-11-03 12:52:56 - GambaClient - DEBUG - ← RECV: 111|User2||result=pickup_success|status=success
+2025-11-03 12:52:56 - GambaClient - DEBUG - ← RECV: 106|User1|ROOM_1|current_player=User1|deck_size=38|discard_pile_size=0|hand=8D,AS,KC|must_play_low=false|opponent_hand=5|opponent_name=User2|opponent_reserves=3|reserves=3|top_card=1S|your_turn=true
+2025-11-03 12:52:56 - GambaClient - DEBUG - ← RECV: 106|User2|ROOM_1|current_player=User1|deck_size=38|discard_pile_size=0|hand=KS,9S,AC,4H,7D|must_play_low=false|opponent_hand=3|opponent_name=User1|opponent_reserves=3|reserves=3|top_card=1S|your_turn=false
+2025-11-03 12:52:57 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:52:57 - GambaClient - DEBUG - PING sent
+2025-11-03 12:52:57 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:52:57 - GambaClient - DEBUG - PONG received (RTT: 0.006s)
+2025-11-03 12:52:59 - GambaClient - INFO - Play cards requested: 8D
+2025-11-03 12:52:59 - GambaClient - DEBUG - → SEND: 7|||cards=8D
+2025-11-03 12:52:59 - GambaClient - DEBUG - ← RECV: 103|||error=Invalid card play
+2025-11-03 12:53:02 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:02 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:02 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:02 - GambaClient - DEBUG - PONG received (RTT: 0.003s)
+2025-11-03 12:53:03 - GambaClient - INFO - Play cards requested: AS
+2025-11-03 12:53:03 - GambaClient - DEBUG - → SEND: 7|||cards=AS
+2025-11-03 12:53:03 - GambaClient - DEBUG - ← RECV: 111|User1||result=play_success|status=success
+2025-11-03 12:53:03 - GambaClient - DEBUG - ← RECV: 106|User1|ROOM_1|current_player=User2|deck_size=37|discard_pile_size=1|hand=8D,KC,3C|must_play_low=false|opponent_hand=5|opponent_name=User2|opponent_reserves=3|reserves=3|top_card=AS|your_turn=false
+2025-11-03 12:53:03 - GambaClient - DEBUG - ← RECV: 106|User2|ROOM_1|current_player=User2|deck_size=37|discard_pile_size=1|hand=KS,9S,AC,4H,7D|must_play_low=false|opponent_hand=3|opponent_name=User1|opponent_reserves=3|reserves=3|top_card=AS|your_turn=true
+2025-11-03 12:53:07 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:07 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:07 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:07 - GambaClient - DEBUG - PONG received (RTT: 0.006s)
+2025-11-03 12:53:12 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:12 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:12 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:12 - GambaClient - DEBUG - PONG received (RTT: 0.000s)
+2025-11-03 12:53:17 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:17 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:17 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:17 - GambaClient - DEBUG - PONG received (RTT: 0.005s)
+2025-11-03 12:53:22 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:22 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:22 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:22 - GambaClient - DEBUG - PONG received (RTT: 0.005s)
+2025-11-03 12:53:27 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:27 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:27 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:27 - GambaClient - DEBUG - PONG received (RTT: 0.004s)
+2025-11-03 12:53:32 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:32 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:32 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:32 - GambaClient - DEBUG - PONG received (RTT: 0.000s)
+2025-11-03 12:53:37 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:37 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:37 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:37 - GambaClient - DEBUG - PONG received (RTT: 0.006s)
+2025-11-03 12:53:42 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:42 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:42 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:42 - GambaClient - DEBUG - PONG received (RTT: 0.002s)
+2025-11-03 12:53:47 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:47 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:47 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:47 - GambaClient - DEBUG - PONG received (RTT: 0.002s)
+2025-11-03 12:53:52 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:52 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:52 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:52 - GambaClient - DEBUG - PONG received (RTT: 0.003s)
+2025-11-03 12:53:57 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:53:57 - GambaClient - DEBUG - PING sent
+2025-11-03 12:53:57 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:53:57 - GambaClient - DEBUG - PONG received (RTT: 0.000s)
+2025-11-03 12:53:57 - GambaClient - INFO - Play cards requested: AC
+2025-11-03 12:53:57 - GambaClient - DEBUG - → SEND: 7|||cards=AC
+2025-11-03 12:53:57 - GambaClient - DEBUG - ← RECV: 111|User2||result=play_success|status=success
+2025-11-03 12:53:57 - GambaClient - DEBUG - ← RECV: 106|User1|ROOM_1|current_player=User1|deck_size=37|discard_pile_size=2|hand=8D,KC,3C|must_play_low=false|opponent_hand=4|opponent_name=User2|opponent_reserves=3|reserves=3|top_card=AC|your_turn=true
+2025-11-03 12:53:57 - GambaClient - DEBUG - ← RECV: 106|User2|ROOM_1|current_player=User1|deck_size=37|discard_pile_size=2|hand=KS,9S,4H,7D|must_play_low=false|opponent_hand=3|opponent_name=User1|opponent_reserves=3|reserves=3|top_card=AC|your_turn=false
+2025-11-03 12:54:02 - GambaClient - INFO - Pickup pile requested
+2025-11-03 12:54:02 - GambaClient - DEBUG - → SEND: 8|||
+2025-11-03 12:54:02 - GambaClient - DEBUG - ← RECV: 111|User1||result=pickup_success|status=success
+2025-11-03 12:54:02 - GambaClient - DEBUG - ← RECV: 106|User1|ROOM_1|current_player=User2|deck_size=37|discard_pile_size=0|hand=8D,KC,3C,AS,AC|must_play_low=false|opponent_hand=4|opponent_name=User2|opponent_reserves=3|reserves=3|top_card=1S|your_turn=false
+2025-11-03 12:54:02 - GambaClient - DEBUG - ← RECV: 106|User2|ROOM_1|current_player=User2|deck_size=37|discard_pile_size=0|hand=KS,9S,4H,7D|must_play_low=false|opponent_hand=5|opponent_name=User1|opponent_reserves=3|reserves=3|top_card=1S|your_turn=true
+2025-11-03 12:54:02 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:54:02 - GambaClient - DEBUG - PING sent
+2025-11-03 12:54:02 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:54:02 - GambaClient - DEBUG - PONG received (RTT: 0.006s)
+2025-11-03 12:54:04 - GambaClient - INFO - Play cards requested: 4H
+2025-11-03 12:54:04 - GambaClient - DEBUG - → SEND: 7|||cards=4H
+2025-11-03 12:54:04 - GambaClient - DEBUG - ← RECV: 103|||error=Invalid card play
+2025-11-03 12:54:07 - GambaClient - INFO - Play cards requested: 9S
+2025-11-03 12:54:07 - GambaClient - DEBUG - → SEND: 7|||cards=9S
+2025-11-03 12:54:07 - GambaClient - DEBUG - ← RECV: 103|||error=Invalid card play
+2025-11-03 12:54:07 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:54:07 - GambaClient - DEBUG - PING sent
+2025-11-03 12:54:07 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:54:07 - GambaClient - DEBUG - PONG received (RTT: 0.006s)
+2025-11-03 12:54:12 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:54:12 - GambaClient - DEBUG - PING sent
+2025-11-03 12:54:12 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:54:12 - GambaClient - DEBUG - PONG received (RTT: 0.000s)
+2025-11-03 12:54:13 - GambaClient - INFO - Play cards requested: KS
+2025-11-03 12:54:13 - GambaClient - DEBUG - → SEND: 7|||cards=KS
+2025-11-03 12:54:13 - GambaClient - DEBUG - ← RECV: 103|||error=Invalid card play
+2025-11-03 12:54:15 - GambaClient - INFO - Play cards requested: 7D
+2025-11-03 12:54:15 - GambaClient - DEBUG - → SEND: 7|||cards=7D
+2025-11-03 12:54:15 - GambaClient - DEBUG - ← RECV: 103|||error=Invalid card play
+2025-11-03 12:54:17 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:54:17 - GambaClient - DEBUG - PING sent
+2025-11-03 12:54:17 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:54:17 - GambaClient - DEBUG - PONG received (RTT: 0.000s)
+2025-11-03 12:54:21 - GambaClient - INFO - Pickup pile requested
+2025-11-03 12:54:21 - GambaClient - DEBUG - → SEND: 8|||
+2025-11-03 12:54:21 - GambaClient - DEBUG - ← RECV: 103|||error=Cannot pickup pile
+2025-11-03 12:54:22 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:54:22 - GambaClient - DEBUG - PING sent
+2025-11-03 12:54:22 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:54:22 - GambaClient - DEBUG - PONG received (RTT: 0.006s)
+2025-11-03 12:54:27 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:54:27 - GambaClient - DEBUG - PING sent
+2025-11-03 12:54:27 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:54:27 - GambaClient - DEBUG - PONG received (RTT: 0.002s)
+2025-11-03 12:54:32 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:54:32 - GambaClient - DEBUG - PING sent
+2025-11-03 12:54:32 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:54:32 - GambaClient - DEBUG - PONG received (RTT: 0.005s)
+2025-11-03 12:54:33 - GambaClient - INFO - Disconnect requested
+2025-11-03 12:54:33 - GambaClient - INFO - Heartbeat stopped
+2025-11-03 12:54:33 - GambaClient - INFO - Connection: HEARTBEAT_STOPPED
+2025-11-03 12:54:33 - GambaClient - INFO - Stopping NetworkClient
+2025-11-03 12:54:33 - GambaClient - INFO - Disconnecting from server
+2025-11-03 12:54:33 - GambaClient - INFO - NetworkClient thread stopped
+2025-11-03 12:54:33 - GambaClient - INFO - Connection: DISCONNECTED
+2025-11-03 12:54:33 - GambaClient - INFO - Network disconnected
+2025-11-03 12:54:33 - GambaClient - INFO - State: IN_GAME → DISCONNECTED
+2025-11-03 12:54:33 - GambaClient - INFO - State changed: IN_GAME → DISCONNECTED
+player=User2|status=temporarily_disconnected
+2025-11-03 12:54:37 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:54:37 - GambaClient - DEBUG - PING sent
+2025-11-03 12:54:37 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:54:37 - GambaClient - DEBUG - PONG received (RTT: 0.005s)
+2025-11-03 12:54:46 - GambaClient - INFO - Disconnect requested
+2025-11-03 12:54:46 - GambaClient - INFO - MainWindow closed
+2025-11-03 12:54:46 - GambaClient - INFO - Disconnect requested
+2025-11-03 12:54:47 - GambaClient - DEBUG - → SEND: 4|||
+2025-11-03 12:54:47 - GambaClient - DEBUG - PING sent
+2025-11-03 12:54:47 - GambaClient - DEBUG - ← RECV: 104||
+2025-11-03 12:54:47 - GambaClient - DEBUG - PONG received (RTT: 0.007s)
+2025-11-03 12:54:51 - GambaClient - INFO - Disconnect requested
+2025-11-03 12:54:51 - GambaClient - INFO - Heartbeat stopped
+2025-11-03 12:54:51 - GambaClient - INFO - Connection: HEARTBEAT_STOPPED
+2025-11-03 12:54:51 - GambaClient - INFO - Stopping NetworkClient
+2025-11-03 12:54:51 - GambaClient - INFO - Disconnecting from server
+2025-11-03 12:54:51 - GambaClient - INFO - NetworkClient thread stopped
+2025-11-03 12:54:51 - GambaClient - INFO - Connection: DISCONNECTED
+2025-11-03 12:54:51 - GambaClient - INFO - Network disconnected
+2025-11-03 12:54:51 - GambaClient - INFO - State: IN_GAME → DISCONNECTED
+2025-11-03 12:54:51 - GambaClient - INFO - State changed: IN_GAME → DISCONNECTED
+2025-11-03 12:54:51 - GambaClient - INFO - MainWindow closed
+2025-11-03 12:54:51 - GambaClient - INFO - Disconnect requested

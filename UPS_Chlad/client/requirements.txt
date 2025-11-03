@@ -1,0 +1,7 @@
+# Gamba Client Requirements
+
+# GUI Framework
+PyQt5>=5.15.0
+
+# No other external dependencies needed!
+# The client uses only standard library for networking (socket)

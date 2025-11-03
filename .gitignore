@@ -19,3 +19,5 @@ UPS_Chlad/server/test_disconnect.py
 UPS_Chlad/server/logs/
 UPS_Chlad/server/test.log
 UPS_Chlad/server/.vscode/
+UPS_Chlad/client/.venv/
+__pycache__
