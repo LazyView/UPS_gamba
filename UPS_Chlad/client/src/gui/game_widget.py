@@ -107,22 +107,37 @@ class GameWidget(QWidget):
         deck_label.setStyleSheet("font-size: 11px; color: #7f8c8d;")
         deck_container.addWidget(deck_label)
         
-        self.deck_widget = EmptyCardSlot("Empty")
-        deck_container.addWidget(self.deck_widget)
+        # Deck size counter
+        self.deck_count_label = QLabel("0") # Default to "0"
+        self.deck_count_label.setAlignment(Qt.AlignCenter)
+        self.deck_count_label.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #7f8c8d; /* Lighter color for placeholder */
+                background-color: #ecf0f1; /* Light gray background */
+                border: 2px dashed #bdc3c7; /* Dashed border */
+                border-radius: 8px;
+            }
+        """)
+        self.deck_count_label.setMinimumSize(80, 110)
+        
+        
+        deck_container.addWidget(self.deck_count_label)
         cards_layout.addLayout(deck_container)
         
         cards_layout.addSpacing(40)
         
-        # Top card (discard pile)
-        top_card_container = QVBoxLayout()
+        # Top card (discard pile) - STORE THE LAYOUT
+        self.top_card_container = QVBoxLayout()
         top_card_label = QLabel("Top Card")
         top_card_label.setAlignment(Qt.AlignCenter)
         top_card_label.setStyleSheet("font-size: 11px; color: #7f8c8d;")
-        top_card_container.addWidget(top_card_label)
+        self.top_card_container.addWidget(top_card_label)
         
         self.top_card_widget = EmptyCardSlot("None")
-        top_card_container.addWidget(self.top_card_widget)
-        cards_layout.addLayout(top_card_container)
+        self.top_card_container.addWidget(self.top_card_widget)
+        cards_layout.addLayout(self.top_card_container)
         
         cards_layout.addStretch()
         board_layout.addLayout(cards_layout)
@@ -296,19 +311,22 @@ class GameWidget(QWidget):
                 not self.game_state.your_turn()
             )
         
+        # Update deck size counter
+        if self.game_state.deck_size:
+            self.deck_count_label.setText(str(self.game_state.deck_size))
         # Update top card
         if self.game_state.top_card:
-            # Remove old top card widget
-            if hasattr(self, 'top_card_widget') and isinstance(self.top_card_widget, CardWidget):
+            # Remove old widget from layout
+            if self.top_card_widget:
+                self.top_card_container.removeWidget(self.top_card_widget)
                 self.top_card_widget.deleteLater()
             
             # Create new card widget
             self.top_card_widget = CardWidget(self.game_state.top_card)
             self.top_card_widget.set_clickable(False)
             
-            # Update layout (find and replace)
-            # This is a bit hacky but works
-            parent_layout = self.top_card_widget.parent()
+            # Add to layout
+            self.top_card_container.addWidget(self.top_card_widget)
         
         # Update special status
         if self.game_state.must_play_low:

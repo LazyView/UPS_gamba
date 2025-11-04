@@ -197,6 +197,7 @@ class LobbyWidget(QWidget):
                 }
             """)
             self.start_button.setEnabled(True)
+            self.start_button.setText("Start game")
         else:
             self.status_label.setText(f"Waiting for players... ({player_count}/{self.max_players})")
             self.status_label.setStyleSheet("""
@@ -208,6 +209,7 @@ class LobbyWidget(QWidget):
                 }
             """)
             self.start_button.setEnabled(False)
+            self.start_button.setText("Start game")
         
         self.logger.info(f"Lobby updated: {room_id}, {player_count}/{self.max_players} players")
     

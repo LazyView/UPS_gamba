@@ -71,7 +71,6 @@ Card CardDeck::dealCard() {
     if (isEmpty()) {
         throw std::runtime_error("Cannot deal from empty deck");
     }
-    //TODO: Implement these methods
     Card card = cards.back();
     cards.pop_back();
     return card;

@@ -4,14 +4,14 @@ Card widget - displays a single playing card.
 A reusable component for showing cards in hand, on the board, etc.
 """
 
-from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout
+from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QFrame
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QPainter, QColor, QFont, QPen, QBrush
 
 from game import Card
 
 
-class CardWidget(QWidget):
+class CardWidget(QFrame):
     """
     Widget for displaying a playing card.
     
@@ -87,8 +87,8 @@ class CardWidget(QWidget):
         self.setStyleSheet("""
             CardWidget {
                 background-color: white;
-                border: 3px solid #2c3e50;
                 border-radius: 8px;
+                border: 1px solid #000000;
             }
             CardWidget:hover {
                 border: 3px solid #3498db;
@@ -254,7 +254,7 @@ class EmptyCardSlot(QWidget):
         self.setStyleSheet("""
             EmptyCardSlot {
                 background-color: #ecf0f1;
-                border: 2px dashed #bdc3c7;
+                border: 1px dashed #bdc3c7;
                 border-radius: 8px;
             }
         """)

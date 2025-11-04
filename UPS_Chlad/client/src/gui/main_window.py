@@ -375,14 +375,12 @@ class MainWindow(QMainWindow):
                 player_count = int(data.get('player_count', 0))
                 players = data.get('players', '').split(',') if data.get('players') else []
                 room_full = data.get('room_full', 'false') == 'true'
-                
-                self.lobby_widget.update_room_info(room_id, player_count, players, room_full)
-                
                 # Check for player joined broadcast
                 if data.get('broadcast_type') == 'room_notification':
                     joined_player = data.get('joined_player')
                     if joined_player:
                         self.lobby_widget.show_player_joined(joined_player)
+                self.lobby_widget.update_room_info(room_id, player_count, players, room_full)
         
         elif msg_type == ServerMessageType.PLAYER_DISCONNECTED:
             disconnected_player = message.get('data', {}).get('disconnected_player')

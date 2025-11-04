@@ -30,6 +30,7 @@ class ConnectionDialog(QDialog):
     
     # Signal emitted when user wants to connect
     connect_requested = pyqtSignal(str, int, str)  # (host, port, name)
+    reconnect_requested = pyqtSignal(str, str, str) # (host, port, name)
     
     def __init__(self, parent=None):
         """

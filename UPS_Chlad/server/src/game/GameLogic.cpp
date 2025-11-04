@@ -135,10 +135,14 @@ bool GameLogic::playCards(const std::string& playerId, const std::vector<Card>& 
     }
 
     // Validate play using GameRules
-    Card topCard = discardPile.empty() ? Card(Suit::HEARTS, Rank::ACE) : getTopDiscardCard();
-    if (!GameRules::isValidPlay(cardsToPlay, topCard, mustPlaySevenOrLower)) {
-        return false;
+    // IMPORTANT: If discard pile is empty (after pickup), any card is valid
+    if (!discardPile.empty()) {
+        Card topCard = getTopDiscardCard();
+        if (!GameRules::isValidPlay(cardsToPlay, topCard, mustPlaySevenOrLower)) {
+            return false;
+        }
     }
+    // If pile is empty, skip validation - any card is valid
 
     // Remove cards from hand
     for (const Card& card : cardsToPlay) {
@@ -351,10 +355,19 @@ bool GameLogic::playFromReserve(const std::string& playerId) {
     player.reserves.pop_back();
 
     // Check if reserve card is valid
-    Card topCard = discardPile.empty() ? Card(Suit::HEARTS, Rank::ACE) : getTopDiscardCard();
-    std::vector<Card> singleCard = {reserve_card};
+    // IMPORTANT: If discard pile is empty (after pickup), any card is valid
+    bool isValid = false;
+    std::vector<Card> singleCard;
+    if (discardPile.empty()) {
+        singleCard = {reserve_card};
+        isValid = true;  // Any card is valid when pile is empty
+    } else {
+        Card topCard = getTopDiscardCard();
+        singleCard = {reserve_card};
+        isValid = GameRules::isValidPlay(singleCard, topCard, mustPlaySevenOrLower);
+    }
 
-    if (GameRules::isValidPlay(singleCard, topCard, mustPlaySevenOrLower)) {
+    if (isValid) {
         // Valid - play the reserve card
         discardPile.push_back(reserve_card);
 

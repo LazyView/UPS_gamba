@@ -96,6 +96,9 @@ class Card:
         # Special card: 2 (wild) can always be played
         if self.is_wild():
             return True
+
+        if self.is_ten():
+            return True
         
         # If must_play_low is active, only ≤7 cards (or wild) allowed
         if must_play_low:
@@ -153,7 +156,14 @@ class Card:
             return []
         
         card_codes = [code.strip() for code in cards_str.split(',')]
-        return [Card(code) for code in card_codes if code]
+        # 1. Create the list of card objects
+        card_list = [Card(code) for code in card_codes if code]
+        
+        # 2. Sort the list in-place using the card's 'value' attribute
+        card_list.sort(key=lambda card: card.value)
+        
+        # 3. Return the now-sorted list
+        return card_list
     
     @staticmethod
     def cards_to_string(cards: List['Card']) -> str:

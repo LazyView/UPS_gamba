@@ -21,3 +21,4 @@ UPS_Chlad/server/test.log
 UPS_Chlad/server/.vscode/
 UPS_Chlad/client/.venv/
 __pycache__
+UPS_Chlad/client/logs/
