@@ -365,8 +365,13 @@ class ConnectionManager(QObject):
     def _on_network_connected(self):
         """Handle network connected signal"""
         self.logger.info("Network connected")
-        
-        # Send CONNECT message
+
+        # Don't send CONNECT if we're reconnecting - RECONNECT will be sent instead
+        if self.state == constants.STATE_RECONNECTING:
+            self.logger.info("Reconnecting - RECONNECT message will be sent by _attempt_reconnect()")
+            return
+
+        # Send CONNECT message for normal connection
         self.send_connect(self.player_name)
     
     def _on_network_disconnected(self):
@@ -396,11 +401,22 @@ class ConnectionManager(QObject):
             self._on_pong_message()
         elif msg_type == ServerMessageType.ROOM_JOINED:
             self._change_state(constants.STATE_IN_ROOM)
+        elif msg_type == ServerMessageType.ROOM_LEFT:
+            # Player left room - back to connected state
+            self.logger.info("Left room - changing to CONNECTED state")
+            self._change_state(constants.STATE_CONNECTED)
         elif msg_type == ServerMessageType.GAME_STARTED:
             self._change_state(constants.STATE_IN_GAME)
+        elif msg_type == ServerMessageType.GAME_STATE:
+            # GAME_STATE indicates we're in an active game (e.g., after reconnection)
+            if self.state != constants.STATE_IN_GAME:
+                self.logger.info("Received GAME_STATE - changing to IN_GAME state")
+                self._change_state(constants.STATE_IN_GAME)
         elif msg_type == ServerMessageType.GAME_OVER:
-            self._change_state(constants.STATE_CONNECTED)
-        
+            # Don't change state here - let ROOM_LEFT handle it
+            # This prevents auto-joining before server sends ROOM_LEFT
+            self.logger.info("Game over - waiting for ROOM_LEFT")
+
         # Forward message to UI
         self.message_received.emit(message_dict)
     

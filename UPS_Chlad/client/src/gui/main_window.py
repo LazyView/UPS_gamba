@@ -102,7 +102,12 @@ class MainWindow(QMainWindow):
         connect_action.setShortcut("Ctrl+N")
         connect_action.triggered.connect(self._show_connection_dialog)
         file_menu.addAction(connect_action)
-        
+
+        reconnect_action = QAction("&Reconnect", self)
+        reconnect_action.setShortcut("Ctrl+R")
+        reconnect_action.triggered.connect(self._reconnect)
+        file_menu.addAction(reconnect_action)
+
         disconnect_action = QAction("&Disconnect", self)
         disconnect_action.setShortcut("Ctrl+D")
         disconnect_action.triggered.connect(self._disconnect)
@@ -177,13 +182,16 @@ class MainWindow(QMainWindow):
         """Show lobby screen"""
         self._update_status("In lobby - waiting for players")
         self.logger.info("Showing lobby screen")
-        
+
         # Create lobby widget if needed
         if not self.lobby_widget:
             self.lobby_widget = LobbyWidget(self)
             self.lobby_widget.start_game_requested.connect(self._on_start_game_requested)
             self.stacked_widget.addWidget(self.lobby_widget)
-        
+        else:
+            # Reset lobby widget if reusing (e.g., after game ended)
+            self.lobby_widget.reset()
+
         # Switch to lobby
         self.stacked_widget.setCurrentWidget(self.lobby_widget)
         self.current_screen = "lobby"
@@ -248,10 +256,41 @@ class MainWindow(QMainWindow):
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
             )
-            
+
             if reply == QMessageBox.Yes:
                 self.connection_manager.disconnect()
                 self._update_status("Disconnected")
+
+    def _reconnect(self):
+        """Reconnect to server"""
+        self.logger.info("Reconnect requested from menu")
+
+        # Attempt manual reconnection
+        success = self.connection_manager.reconnect_manually()
+
+        if success:
+            self._update_status("Attempting to reconnect...")
+            if self.game_widget:
+                self.game_widget.add_log_message("Attempting to reconnect...", "system")
+        else:
+            # Reconnection couldn't be initiated
+            current_state = self.connection_manager.state
+
+            if current_state not in [constants.STATE_DISCONNECTED, constants.STATE_RECONNECTING]:
+                QMessageBox.information(
+                    self,
+                    "Already Connected",
+                    "You are already connected to the server.",
+                    QMessageBox.Ok
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Reconnect Failed",
+                    "Unable to reconnect. No previous connection information available.\n\n"
+                    "Please use Connect to establish a new connection.",
+                    QMessageBox.Ok
+                )
 
     def _on_start_game_requested(self):
         """Handle start game request from lobby"""
@@ -303,8 +342,10 @@ class MainWindow(QMainWindow):
                 self.connection_dialog.show_success()
             self._update_status("Connected to server")
 
-            # Auto-join room after connection
-            QTimer.singleShot(100, self.connection_manager.send_join_room)
+            # Auto-join room only for fresh connections, not reconnections
+            # During reconnection (old_state == RECONNECTING), server will send game state
+            if old_state != constants.STATE_RECONNECTING:
+                QTimer.singleShot(100, self.connection_manager.send_join_room)
             
         elif new_state == constants.STATE_IN_ROOM:
             # Joined room - show lobby
@@ -342,8 +383,9 @@ class MainWindow(QMainWindow):
         elif msg_type == ServerMessageType.GAME_STATE:
             # Update game state
             self.game_state.update_from_game_state_message(message.get('data', {}))
-            
+
             # Update game widget if visible
+            # Note: Screen switching is handled by state change to IN_GAME
             if self.game_widget and self.current_screen == "game":
                 self.game_widget.update_game_state()
             
@@ -420,14 +462,7 @@ class MainWindow(QMainWindow):
         """Handle successful reconnection"""
         self._update_status("Reconnected")
         if self.game_widget:
-            self.game_widget.add_log_message("Reconnected!", "success")
-        
-        QMessageBox.information(
-            self,
-            "Reconnected",
-            "Successfully reconnected to server!",
-            QMessageBox.Ok
-        )
+            self.game_widget.add_log_message("Reconnected successfully!", "success")
     
     # ========================================================================
     # UI HELPERS
