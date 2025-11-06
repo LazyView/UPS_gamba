@@ -90,6 +90,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Gamba Card Game")
         self.setMinimumSize(800, 600)
         self.resize(1000, 700)
+
+    def _update_window_title(self):
+        """Update window title with player name if connected"""
+        if self.game_state.player_name:
+            self.setWindowTitle(f"Gamba Card Game - Player: {self.game_state.player_name}")
+        else:
+            self.setWindowTitle("Gamba Card Game")
     
     def _setup_menu_bar(self):
         """Setup menu bar"""
@@ -341,6 +348,7 @@ class MainWindow(QMainWindow):
             if self.connection_dialog:
                 self.connection_dialog.show_success()
             self._update_status("Connected to server")
+            self._update_window_title()  # Show player name in window title
 
             # Auto-join room only for fresh connections, not reconnections
             # During reconnection (old_state == RECONNECTING), server will send game state
@@ -358,7 +366,8 @@ class MainWindow(QMainWindow):
         elif new_state == constants.STATE_DISCONNECTED:
             # Disconnected
             self._update_status("Not connected")
-            
+            self._update_window_title()  # Reset window title
+
             # If we were in a screen, show connection dialog
             if self.current_screen:
                 self._show_connection_dialog()
@@ -493,27 +502,28 @@ class MainWindow(QMainWindow):
     
     def _show_game_over(self, winner: str):
         """
-        Show game over dialog.
-        
+        Show game over dialog (non-blocking).
+
         Args:
             winner: Name of winning player
         """
         player_name = self.game_state.player_name
-        
+
         if winner == player_name:
             title = "You Won!"
             message = "Congratulations! You won the game!"
         else:
             title = "Game Over"
             message = f"{winner} won the game."
-        
-        QMessageBox.information(
-            self,
-            title,
-            message,
-            QMessageBox.Ok
-        )
-        
+
+        # Use non-blocking dialog to avoid interfering with message processing
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Information)
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.show()  # Non-blocking
+
         log_game_event("GAME_OVER", f"Winner: {winner}")
     
     def _show_about(self):
