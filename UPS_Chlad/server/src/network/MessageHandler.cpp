@@ -95,19 +95,25 @@ std::vector<ProtocolMessage> MessageHandler::handleConnect(const ProtocolMessage
     // 2. VALIDATE PLAYER NAME
     if (player_name.empty()) {
         logger->warning("handleConnect: empty player name");
-        return {ProtocolHelper::createErrorResponse("Player name cannot be empty")};
+        ProtocolMessage error = ProtocolHelper::createErrorResponse("Player name cannot be empty");
+        error.setData("disconnect", "true");
+        return {error};
     }
-    
+
     if (player_name.length() > 32) {
         logger->warning("handleConnect: player name too long (" + std::to_string(player_name.length()) + " chars)");
-        return {ProtocolHelper::createErrorResponse("Player name too long (max 32 characters)")};
+        ProtocolMessage error = ProtocolHelper::createErrorResponse("Player name too long (max 32 characters)");
+        error.setData("disconnect", "true");
+        return {error};
     }
-    
+
     // Check for invalid characters (only allow alphanumeric, underscore, hyphen)
     for (char c : player_name) {
         if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') {
             logger->warning("handleConnect: player name contains invalid character: '" + std::string(1, c) + "'");
-            return {ProtocolHelper::createErrorResponse("Player name contains invalid characters (only letters, numbers, _, - allowed)")};
+            ProtocolMessage error = ProtocolHelper::createErrorResponse("Player name contains invalid characters (only letters, numbers, _, - allowed)");
+            error.setData("disconnect", "true");
+            return {error};
         }
     }
     
@@ -122,7 +128,9 @@ std::vector<ProtocolMessage> MessageHandler::handleConnect(const ProtocolMessage
         return {ProtocolHelper::createConnectedResponse(result, player_name)};
     } else {
         logger->debug("handleConnect: creating error response");
-        return {ProtocolHelper::createErrorResponse("Connection failed - name already taken")};
+        ProtocolMessage error = ProtocolHelper::createErrorResponse("Connection failed - name already taken");
+        error.setData("disconnect", "true");  // Close socket after sending error
+        return {error};
     }
 }
 
