@@ -390,14 +390,23 @@ class MainWindow(QMainWindow):
                 self.game_widget.add_log_message(f"Error: {error_msg}", "error")
             
         elif msg_type == ServerMessageType.GAME_STATE:
-            # Update game state
+            # Update game state (full state - used for game start and reconnection)
             self.game_state.update_from_game_state_message(message.get('data', {}))
 
             # Update game widget if visible
             # Note: Screen switching is handled by state change to IN_GAME
             if self.game_widget and self.current_screen == "game":
                 self.game_widget.update_game_state()
-            
+
+        elif msg_type == ServerMessageType.TURN_UPDATE:
+            # Update game state (delta update - used during normal gameplay)
+            # TURN_UPDATE has the same structure as GAME_STATE, just fewer fields
+            self.game_state.update_from_game_state_message(message.get('data', {}))
+
+            # Update game widget if visible
+            if self.game_widget and self.current_screen == "game":
+                self.game_widget.update_game_state()
+
         elif msg_type == ServerMessageType.TURN_RESULT:
             # Log turn result
             result = message.get('data', {}).get('result', '')

@@ -337,18 +337,19 @@ std::vector<ProtocolMessage> MessageHandler::handlePickupPile(const std::string&
     turn_result.player_id = player_name;
     responses.push_back(turn_result);
     
-    // b. Send updated GAME_STATE to all players
+    // b. Send TURN_UPDATE (delta) to all players
     std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
-    
+
     for (const std::string& target_player : room_players) {
         try {
             GameStateData game_data = gameManager->getGameStateForPlayer(roomManager, room_id, target_player);
-            
+
             if (game_data.valid) {
-                ProtocolMessage game_state = ProtocolHelper::createGameStateResponse(target_player, room_id, game_data);
-                game_state.player_id = target_player;
-                responses.push_back(game_state);
-                logger->debug("Added game state for player '" + target_player + "'");
+                // Use TURN_UPDATE for normal gameplay (compact delta)
+                ProtocolMessage turn_update = ProtocolHelper::createTurnUpdateResponse(target_player, room_id, game_data);
+                turn_update.player_id = target_player;
+                responses.push_back(turn_update);
+                logger->debug("Added turn update (delta) for player '" + target_player + "'");
             } else {
                 logger->error("Invalid game state for player '" + target_player + "': " + game_data.error_message);
             }
@@ -435,18 +436,19 @@ std::vector<ProtocolMessage> MessageHandler::handlePlayCards(const ProtocolMessa
         return responses;
     }
     
-    // c. Send updated GAME_STATE to all players
+    // c. Send TURN_UPDATE (delta) to all players
     std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
-    
+
     for (const std::string& target_player : room_players) {
         try {
             GameStateData game_data = gameManager->getGameStateForPlayer(roomManager, room_id, target_player);
-            
+
             if (game_data.valid) {
-                ProtocolMessage game_state = ProtocolHelper::createGameStateResponse(target_player, room_id, game_data);
-                game_state.player_id = target_player;
-                responses.push_back(game_state);
-                logger->debug("Added game state for player '" + target_player + "'");
+                // Use TURN_UPDATE for normal gameplay (compact delta)
+                ProtocolMessage turn_update = ProtocolHelper::createTurnUpdateResponse(target_player, room_id, game_data);
+                turn_update.player_id = target_player;
+                responses.push_back(turn_update);
+                logger->debug("Added turn update (delta) for player '" + target_player + "'");
             } else {
                 logger->error("Invalid game state for player '" + target_player + "': " + game_data.error_message);
             }

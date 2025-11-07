@@ -51,6 +51,7 @@ bool MessageValidator::isValidMessageType(int type_code) {
         case MessageType::PONG:
         case MessageType::GAME_STARTED:
         case MessageType::GAME_STATE:
+        case MessageType::TURN_UPDATE:
         case MessageType::PLAYER_DISCONNECTED:
         case MessageType::GAME_PAUSED:
         case MessageType::PLAYER_RECONNECTED:

@@ -412,6 +412,12 @@ class ConnectionManager(QObject):
             if self.state != constants.STATE_IN_GAME:
                 self.logger.info("Received GAME_STATE - changing to IN_GAME state")
                 self._change_state(constants.STATE_IN_GAME)
+        elif msg_type == ServerMessageType.TURN_UPDATE:
+            # TURN_UPDATE is only sent during active gameplay
+            # State should already be IN_GAME, but ensure it
+            if self.state != constants.STATE_IN_GAME:
+                self.logger.warning("Received TURN_UPDATE while not IN_GAME - fixing state")
+                self._change_state(constants.STATE_IN_GAME)
         elif msg_type == ServerMessageType.GAME_OVER:
             # Don't change state here - let ROOM_LEFT handle it
             # This prevents auto-joining before server sends ROOM_LEFT
