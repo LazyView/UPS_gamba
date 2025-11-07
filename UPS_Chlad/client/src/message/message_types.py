@@ -23,3 +23,4 @@ class ServerMessageType(IntEnum):
     PLAYER_RECONNECTED = 109
     TURN_RESULT = 111
     GAME_OVER = 112
+    TURN_UPDATE = 113

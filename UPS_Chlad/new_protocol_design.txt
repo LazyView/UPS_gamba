@@ -1,0 +1,162 @@
+● Perfect! Thank you for the clarification. Now I understand completely:
+
+  ✅ Correct Game Mechanics
+
+  Starting State:
+  - Deck: 52 cards (standard deck)
+  - Deal: 6 cards/player (3 hand + 3 reserves) × 2 players = 12 cards
+  - Discard pile: 1 card placed
+  - Deck at start: 52 - 12 - 1 = 39 cards ✓ (matches your logs!)
+
+  Gameplay:
+  - After playing cards, draw back to 3 in hand (if deck has cards)
+  - When deck empty AND hand empty → play reserves
+  - Win: hand=0 AND reserves=0
+
+  Special Cards:
+  - 2 (Wild): Play on anything, anything plays on it
+  - 7 (Low Enforcer): Next player must play ≤7
+  - 10 (Burner): Removes pile from game
+
+  ---
+  📋 CORRECTED Optimized Delta Protocol Design
+
+  Field Codes (Final - Corrected)
+
+  | Code | Meaning           | Example    | Delta?                             |
+  |------|-------------------|------------|------------------------------------|
+  | h    | hand              | h=3D,TD,7S | ✅ Always (changes every turn)      |
+  | r    | reserves          | r=2        | ✅ Delta (only when changed)        |
+  | oh   | opponent_hand     | oh=3       | ✅ Always (changes every turn)      |
+  | or   | opponent_reserves | or=2       | ✅ Delta (only when changed)        |
+  | on   | opponent_name     | on=Bob     | ❌ Full state only                  |
+  | tc   | top_card          | tc=5H      | ✅ Always (changes every turn)      |
+  | dp   | discard_pile_size | dp=8       | ✅ Always (changes every turn)      |
+  | dk   | deck_size         | dk=35      | ✅ Delta (only when cards drawn)    |
+  | ml   | must_play_low     | ml=1       | ✅ Delta (only when 7 played/reset) |
+  | yt   | your_turn         | yt=1       | ✅ Always (turn switches)           |
+
+  ---
+  Message Examples (CORRECTED)
+
+  1. GAME_STATE_FULL (106) - Game Start
+
+  Player 1 (goes first):
+  106|1||h=3D,TD,7S|r=3|oh=3|or=3|on=Bob|tc=5H|dp=1|dk=39|ml=0|yt=1
+  65 bytes
+
+  Player 2 (waits):
+  106|2||h=AH,2C,AS|r=3|oh=3|or=3|on=Alice|tc=5H|dp=1|dk=39|ml=0|yt=0
+  67 bytes
+
+  ---
+  2. TURN_UPDATE (113) - You Play Single Card (Draw 1)
+
+  Scenario: You play 7S (enforces low), draw AC from deck
+
+  To you:
+  113|1||h=3D,TD,AC|tc=7S|dp=2|dk=38|ml=1|yt=0
+  37 bytes - New hand (drew AC), top card, pile grew, deck shrunk, low rule active, turn switches
+
+  To opponent:
+  113|2||oh=3|tc=7S|dp=2|ml=1|yt=1
+  27 bytes - Opponent hand stayed 3 (played 1, drew 1), top card, pile grew, low rule, your turn
+
+  ---
+  3. TURN_UPDATE (113) - Opponent Plays 2 (Wild)
+
+  Scenario: Opponent plays 2H (wild card)
+
+  To you:
+  113|1||oh=3|tc=2H|dp=3|yt=1
+  22 bytes - Opponent hand count, new top (2 wild), pile grew, your turn
+  - Note: ml not sent because it didn't change (still 0)
+  - Note: dk not sent because opponent drew 1 to replace 1 (net 0)
+
+  ---
+  4. TURN_UPDATE (113) - You Play 10 (Burner)
+
+  Scenario: You play 10H (burns entire pile), draw KD
+
+  To you:
+  113|1||h=3D,7S,KD|tc=1S|dp=0|dk=37|yt=0
+  36 bytes - New hand, special empty indicator (1S), pile burned, deck shrunk, turn switches
+
+  To opponent:
+  113|2||oh=3|tc=1S|dp=0|yt=1
+  21 bytes - Pile burned, fresh start
+
+  ---
+  5. TURN_UPDATE (113) - You Pickup 8-Card Pile (No Draw)
+
+  Scenario: No valid play, pickup pile
+
+  To you:
+  113|1||h=3D,TD,7S,5H,6H,2C,AS,KD,QH,9D,4C|dp=0|ml=0|yt=0
+  52 bytes - Hand grew (no draw from deck), pile emptied, low rule reset
+
+  To opponent:
+  113|2||oh=11|dp=0|ml=0|yt=1
+  20 bytes
+
+  ---
+  6. TURN_UPDATE (113) - Playing from Reserve (Deck Empty)
+
+  Scenario: Your hand empty, deck empty, play reserve → reveals 4H (valid)
+
+  To you:
+  113|1||h=|r=2|tc=4H|dp=2|yt=0
+  23 bytes - Empty hand, reserves decreased, top card changed
+
+  To opponent:
+  113|2||or=2|tc=4H|dp=2|yt=1
+  21 bytes - Opponent reserves decreased
+
+  ---
+  7. TURN_UPDATE (113) - Opponent Plays Multiple Cards
+
+  Scenario: Opponent plays 3H,3D,3C (3 of same rank), draws 3 cards
+
+  To you:
+  113|1||oh=3|tc=3H|dp=5|dk=34|yt=1
+  29 bytes - Opponent hand (played 3, drew 3 = still 3), top card, pile +3, deck -3
+
+  ---
+  8. GAME_STATE_FULL (106) - Reconnection Mid-Game
+
+  Scenario: Deck low, you have 1 card in hand, 1 reserve
+
+  106|1||h=4D|r=1|oh=5|or=2|on=Bob|tc=QS|dp=15|dk=12|ml=0|yt=1
+  55 bytes - Complete state restoration
+
+  ---
+  Size Comparison (CORRECTED)
+
+  | Scenario            | Old Protocol | Full (106) | Delta (113) | Savings |
+  |---------------------|--------------|------------|-------------|---------|
+  | Game start          | 215B         | 65B        | -           | 70%     |
+  | Play 1 card, draw 1 | 215B         | -          | 37B         | 83% ✨   |
+  | Opponent plays      | 215B         | -          | 27B         | 87% ✨   |
+  | Play 10 (burner)    | 215B         | -          | 36B         | 83%     |
+  | Pickup pile         | 215B         | -          | 52B         | 76%     |
+  | Play reserve        | 215B         | -          | 23B         | 89% ✨   |
+  | Reconnection        | 215B         | 65B        | -           | 70%     |
+
+  Average savings: ~80% 🚀
+
+  ---
+  Delta Send Logic (When to Include Each Field)
+
+  Always Send in TURN_UPDATE:
+
+  - ✅ h or oh - Hand always relevant
+  - ✅ tc - Top card always changes (or burns)
+  - ✅ dp - Pile size always changes
+  - ✅ yt - Turn always switches
+
+  Conditional Send (only when changed):
+
+  - dk - Only when cards drawn from deck
+  - ml - Only when 7 played (set to 1) or reset to 0
+  - r or or - Only when reserves played
+  - on - Never in delta (only in full state)

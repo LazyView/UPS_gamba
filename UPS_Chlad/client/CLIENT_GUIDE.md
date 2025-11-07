@@ -403,6 +403,7 @@ Valid: ANY card
 - Resets after next play
 
 **10 (Burner):**
+- Play on anything
 - Removes pile from game
 - Next player starts fresh
 

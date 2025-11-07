@@ -15,6 +15,14 @@ struct ProtocolMessage {
     std::map<std::string, std::string> data;
     bool should_broadcast_to_room = false;
 
+    // Field code mappings (old verbose names → new compact codes)
+    static const std::map<std::string, std::string> FIELD_CODE_MAP;
+    static const std::map<std::string, std::string> REVERSE_FIELD_CODE_MAP;
+
+    // Helper to get compact code for a field name
+    static std::string getCompactCode(const std::string& field_name);
+    static std::string getFullFieldName(const std::string& compact_code);
+
     // Constructors
     ProtocolMessage();
     ProtocolMessage(MessageType msg_type);
