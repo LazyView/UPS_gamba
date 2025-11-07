@@ -317,17 +317,24 @@ class ConnectionManager(QObject):
             self.reconnect_status.emit(time_remaining)
         
         # Attempt reconnection
-        if not self.network_client:
-            # Create new client with same host/port
-            # Get host/port from previous connection (stored)
-            host = getattr(self, '_last_host', constants.DEFAULT_HOST)
-            port = getattr(self, '_last_port', constants.DEFAULT_PORT)
-            self.network_client = NetworkClient(host, port)
-            self._connect_network_signals()
-            self.network_client.start()
-        
+        # Always create a fresh NetworkClient for reconnection
+        # (old client's thread may have stopped after disconnect)
+        if self.network_client:
+            # Stop old client if it exists
+            self.network_client.stop()
+            self.network_client = None
+
+        # Create new client with same host/port
+        host = getattr(self, '_last_host', constants.DEFAULT_HOST)
+        port = getattr(self, '_last_port', constants.DEFAULT_PORT)
+        self.network_client = NetworkClient(host, port)
+        self._connect_network_signals()
+        self.network_client.start()
+
         # Try to reconnect
         if self.network_client.connect_to_server():
+            # Connection successful - stop timer and wait for server response
+            self.reconnect_timer.stop()
             # Send RECONNECT message
             self.send_reconnect(self.player_name)
     
@@ -446,9 +453,11 @@ class ConnectionManager(QObject):
     
     def _on_connected_message(self, message_dict: dict):
         """Handle CONNECTED message from server"""
-        status = message_dict.get('data', {}).get('status')
-        
-        if status == 'success':
+        self.logger.debug(f"CONNECTED message received: {message_dict}")
+        status = message_dict.get('data', {}).get('status')  # Parser expands 'st' to 'status'
+        self.logger.debug(f"Status value: {repr(status)}")
+
+        if status == 'success':  # Parser expands 'ok' to 'success'
             self.logger.info("Connection successful")
             self._change_state(constants.STATE_CONNECTED)
             

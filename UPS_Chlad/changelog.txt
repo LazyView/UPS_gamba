@@ -160,3 +160,52 @@
   - ml - Only when 7 played (set to 1) or reset to 0
   - r or or - Only when reserves played
   - on - Never in delta (only in full state)
+
+
+
+
+    1. Server sends ERROR with disconnect=true ✓
+  2. Server closes socket ✓
+  3. Client's ConnectionManager receives ERROR ✓
+  4. ConnectionManager stops network client and changes to DISCONNECTED ✓
+  5. MainWindow receives ERROR message and calls connection_dialog.show_error() ✓ (NEW)
+  6. Connection dialog resets "connecting" state, re-enables fields/buttons ✓ (NEW)
+  7. You can retry immediately ✓
+
+  The fix is in main_window.py:390-392. Now when an ERROR is received while the connection dialog is open, it will:
+  - Display the error message in red
+  - Call set_connecting(False) to re-enable all inputs and buttons
+  - Allow you to immediately retry
+
+  Try it now - you should no longer get stuck at "Connecting to server..." after an error!
+
+> very nice, it works now 
+
+● Excellent! Let me update the todo list to reflect all the fixes we just completed:
+
+● Perfect! Here's a summary of what we accomplished with the protocol refactor:
+
+  ✅ Protocol Refactor Complete
+
+  Size Reduction:
+
+  - Field codes: hand → h, reserves → r, etc. (58+ mappings)
+  - Value compression: true → 1, false → 0, etc.
+  - Delta updates: TURN_UPDATE (113) sends only changed fields during gameplay
+  - Result: ~200B → ~30-40B per turn update (85% reduction)
+
+  Bugs Fixed:
+
+  1. Numeric conversion bug - Protected numbers from being converted to "true"/"false"
+  2. Turn tracking bug - Client now handles both current_player and your_turn fields
+  3. Room broadcast bug - Broadcasts now show current room state, not stale snapshots
+  4. Session hijacking - Rejected connections can no longer reconnect and hijack existing players
+  5. UI stuck bug - Connection dialog properly resets after errors
+
+  Files Modified:
+
+  Server: MessageType.h, ProtocolMessage.cpp, ProtocolHelper.cpp, MessageHandler.cpp, MessageValidator.cpp, NetworkManager.cpp
+
+  Client: message_types.py, message_protocol.py, state.py, main_window.py, connection_manager.py
+
+  Everything is tested and working! Is there anything else you'd like to work on?
