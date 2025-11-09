@@ -14,10 +14,12 @@ UPS_Chlad/.idea/
 UPS_Chlad/.claude/
 .claude/
 UPS_Chlad/ups_project
-UPS_Chlad/server/test_disconnect.py
 UPS_Chlad/server/logs/
-UPS_Chlad/server/test.log
+UPS_Chlad/client/logs/
 UPS_Chlad/server/.vscode/
 UPS_Chlad/client/.venv/
+UPS_Chlad/.vscode/
+UPS_Chlad/client/tests
 __pycache__
-UPS_Chlad/client/logs/
+UPS_Chlad/server/gamba_server
+UPS_Chlad/changelog.txt
