@@ -262,15 +262,26 @@ void NetworkManager::handleClient(int client_socket) {
                                     
                                     // STEP 2: Broadcast modified version to OTHER players (exclude sender)
                                     logger->debug("Broadcasting to room " + room_id + " (excluding " + player_name + ")");
-                                    
+
                                     ProtocolMessage broadcast_msg = response;
                                     broadcast_msg.setData("broadcast_type", "room_notification");
-                                    
+
                                     // Add context about who triggered the action
                                     if (response.getType() == MessageType::ROOM_JOINED) {
                                         broadcast_msg.setData("joined_player", player_name);
+
+                                        // Update broadcast with CURRENT room state (not stale snapshot)
+                                        std::vector<std::string> current_players = roomManager->getRoomPlayers(room_id);
+                                        std::string players_list;
+                                        for (size_t i = 0; i < current_players.size(); ++i) {
+                                            if (i > 0) players_list += ",";
+                                            players_list += current_players[i];
+                                        }
+                                        broadcast_msg.setData("players", players_list);
+                                        broadcast_msg.setData("player_count", std::to_string(current_players.size()));
+                                        broadcast_msg.setData("room_full", (current_players.size() >= 2) ? "true" : "false");
                                     }
-                                    
+
                                     broadcastToRoom(room_id, broadcast_msg, player_name);
                                 } else {
                                     logger->warning("Broadcast flagged but no room_id in response");

@@ -76,7 +76,21 @@ public:
     * @return ProtocolMessage about the winner
     */
     static ProtocolMessage createGameOverResponse(const std::string& winner);
-    
+
+    /*
+    * Creates a compact delta update message (TURN_UPDATE) for game state changes.
+    * Only includes fields that have changed since last update.
+    * @param player_name - player id (recipient)
+    * @param room_id - room id (usually empty since client knows)
+    * @param game_data - current game state data
+    * @return ProtocolMessage with only delta fields (much smaller than full state)
+    */
+    static ProtocolMessage createTurnUpdateResponse(
+        const std::string& player_name,
+        const std::string& room_id,
+        const GameStateData& game_data
+    );
+
     // Validation utilities
     /*
     * Utility function to validate if message has atleast message type and lenght of the message type shorter then 200

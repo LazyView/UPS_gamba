@@ -51,6 +51,7 @@ class ConnectionManager(QObject):
     error_occurred = pyqtSignal(str)  # Error message
     reconnecting = pyqtSignal()  # Auto-reconnection started
     reconnected = pyqtSignal()  # Reconnection successful
+    reconnect_status = pyqtSignal(int)  # Reconnection progress (seconds remaining)
     
     def __init__(self):
         """Initialize connection manager"""
@@ -146,31 +147,35 @@ class ConnectionManager(QObject):
     
     def reconnect_manually(self) -> bool:
         """
-        Manually trigger reconnection (for long-term disconnects).
-        
+        Manually trigger reconnection (for temporary disconnects).
+        Requires active session with saved connection info.
+
+        Security: Only works within the same client session to prevent
+        session hijacking. After client restart, use Connect instead.
+
         Returns:
             True if reconnection initiated
         """
         if self.state not in [constants.STATE_DISCONNECTED, constants.STATE_RECONNECTING]:
             self.logger.warning(f"Cannot reconnect - current state: {self.state}")
             return False
-        
+
         if not hasattr(self, '_last_host') or not hasattr(self, '_last_port'):
             self.logger.error("Cannot reconnect - no previous connection info")
             return False
-        
+
         self.logger.info("Manual reconnection requested")
-        
+
         # Stop any ongoing auto-reconnect
         self.reconnect_timer.stop()
-        
+
         # Reset reconnect state
         self.disconnect_time = datetime.now()
         self.reconnect_attempts = 0
-        
+
         # Start reconnection
         self._start_auto_reconnect()
-        
+
         return True
     
     def send_message(self, message: str):
@@ -287,40 +292,49 @@ class ConnectionManager(QObject):
     def _attempt_reconnect(self):
         """Attempt to reconnect"""
         self.reconnect_attempts += 1
-        
+
         # Check if we're within the reconnect window
         if self.disconnect_time:
             elapsed = (datetime.now() - self.disconnect_time).total_seconds()
+            time_remaining = int(constants.SHORT_TERM_DISCONNECT_THRESHOLD - elapsed)
+
             if elapsed > constants.SHORT_TERM_DISCONNECT_THRESHOLD:
-                # Long-term disconnect - stop auto-reconnect
+                # Short-term window expired - stop auto-reconnect
+                # Player can still manually reconnect (60-120s window)
                 self.logger.info(f"Disconnect exceeded {constants.SHORT_TERM_DISCONNECT_THRESHOLD}s - stopping auto-reconnect")
                 self.reconnect_timer.stop()
                 self._change_state(constants.STATE_DISCONNECTED)
-                self.error_occurred.emit("Connection lost. Please reconnect manually.")
+                self.error_occurred.emit(
+                    "Auto-reconnect stopped.\n\n"
+                    "You can still manually reconnect within the next 60 seconds.\n"
+                    "Please use File → Reconnect to continue your session.\n\n"
+                    "After 120 seconds total, your session will expire and you'll need to use File → Connect."
+                )
                 return
-        
-        # Check max attempts
-        if self.reconnect_attempts > constants.RECONNECT_MAX_ATTEMPTS:
-            self.logger.info(f"Max reconnect attempts ({constants.RECONNECT_MAX_ATTEMPTS}) reached")
-            self.reconnect_timer.stop()
-            self._change_state(constants.STATE_DISCONNECTED)
-            self.error_occurred.emit("Failed to reconnect. Please try again.")
-            return
-        
-        self.logger.info(f"Reconnect attempt {self.reconnect_attempts}/{constants.RECONNECT_MAX_ATTEMPTS}")
+
+            # Emit status update with time remaining
+            self.logger.info(f"Reconnect attempt #{self.reconnect_attempts} ({time_remaining}s remaining)")
+            self.reconnect_status.emit(time_remaining)
         
         # Attempt reconnection
-        if not self.network_client:
-            # Create new client with same host/port
-            # Get host/port from previous connection (stored)
-            host = getattr(self, '_last_host', constants.DEFAULT_HOST)
-            port = getattr(self, '_last_port', constants.DEFAULT_PORT)
-            self.network_client = NetworkClient(host, port)
-            self._connect_network_signals()
-            self.network_client.start()
-        
+        # Always create a fresh NetworkClient for reconnection
+        # (old client's thread may have stopped after disconnect)
+        if self.network_client:
+            # Stop old client if it exists
+            self.network_client.stop()
+            self.network_client = None
+
+        # Create new client with same host/port
+        host = getattr(self, '_last_host', constants.DEFAULT_HOST)
+        port = getattr(self, '_last_port', constants.DEFAULT_PORT)
+        self.network_client = NetworkClient(host, port)
+        self._connect_network_signals()
+        self.network_client.start()
+
         # Try to reconnect
         if self.network_client.connect_to_server():
+            # Connection successful - stop timer and wait for server response
+            self.reconnect_timer.stop()
             # Send RECONNECT message
             self.send_reconnect(self.player_name)
     
@@ -388,14 +402,25 @@ class ConnectionManager(QObject):
     def _on_message_received(self, message_dict: dict):
         """
         Handle incoming message from server.
-        
+
         Args:
             message_dict: Parsed message dictionary
         """
         msg_type = message_dict.get('type')
-        
+
         # Handle protocol messages that affect connection state
-        if msg_type == ServerMessageType.CONNECTED:
+        if msg_type == ServerMessageType.ERROR:
+            # Handle ERROR during connection phase
+            if self.state == constants.STATE_CONNECTING:
+                self.logger.warning("Connection rejected by server")
+                # Mark as intentional to prevent auto-reconnect
+                self.intentional_disconnect = True
+                # Disconnect and return to DISCONNECTED state
+                if self.network_client:
+                    self.network_client.stop()
+                    self.network_client = None
+                self._change_state(constants.STATE_DISCONNECTED)
+        elif msg_type == ServerMessageType.CONNECTED:
             self._on_connected_message(message_dict)
         elif msg_type == ServerMessageType.PONG:
             self._on_pong_message()
@@ -412,6 +437,12 @@ class ConnectionManager(QObject):
             if self.state != constants.STATE_IN_GAME:
                 self.logger.info("Received GAME_STATE - changing to IN_GAME state")
                 self._change_state(constants.STATE_IN_GAME)
+        elif msg_type == ServerMessageType.TURN_UPDATE:
+            # TURN_UPDATE is only sent during active gameplay
+            # State should already be IN_GAME, but ensure it
+            if self.state != constants.STATE_IN_GAME:
+                self.logger.warning("Received TURN_UPDATE while not IN_GAME - fixing state")
+                self._change_state(constants.STATE_IN_GAME)
         elif msg_type == ServerMessageType.GAME_OVER:
             # Don't change state here - let ROOM_LEFT handle it
             # This prevents auto-joining before server sends ROOM_LEFT
@@ -422,9 +453,11 @@ class ConnectionManager(QObject):
     
     def _on_connected_message(self, message_dict: dict):
         """Handle CONNECTED message from server"""
-        status = message_dict.get('data', {}).get('status')
-        
-        if status == 'success':
+        self.logger.debug(f"CONNECTED message received: {message_dict}")
+        status = message_dict.get('data', {}).get('status')  # Parser expands 'st' to 'status'
+        self.logger.debug(f"Status value: {repr(status)}")
+
+        if status == 'success':  # Parser expands 'ok' to 'success'
             self.logger.info("Connection successful")
             self._change_state(constants.STATE_CONNECTED)
             

@@ -52,49 +52,82 @@ class GameState:
     
     def update_from_game_state_message(self, data: Dict[str, str]):
         """
-        Update state from GAME_STATE message (type 106).
-        
+        Update state from GAME_STATE (106) or TURN_UPDATE (113) message.
+        Handles both full state and delta updates gracefully.
+
         Args:
             data: Parsed message data dictionary
         """
         # Ensure player exists
         if not self.player:
             self.initialize_player(data.get('player_id', 'Unknown'))
-        
-        # Update player's hand
-        hand_str = data.get('hand', '')
-        self.player.set_hand_from_string(hand_str)
-        
-        # Update reserves
-        self.player.reserves_count = int(data.get('reserves', 0))
-        
-        # Update current player
-        self.current_player_name = data.get('current_player', '')
-        self.player.is_current_player = (self.current_player_name == self.player_name)
-        
-        # Update top card
-        top_card_str = data.get('top_card', EMPTY_PILE_MARKER)
-        try:
-            self.top_card = Card(top_card_str)
-        except ValueError:
-            # Invalid card, use empty marker
-            self.top_card = Card(EMPTY_PILE_MARKER)
-        
-        # Update must_play_low flag
-        self.must_play_low = data.get('must_play_low', 'false').lower() == 'true'
-        
-        # Update pile info
-        self.deck_size = int(data.get('deck_size', 0))
-        self.discard_pile_size = int(data.get('discard_pile_size', 0))
-        
-        # Update opponent
+
+        # Update player's hand (if present)
+        if 'hand' in data:
+            hand_str = data.get('hand', '')
+            self.player.set_hand_from_string(hand_str)
+
+        # Update reserves (if present)
+        if 'reserves' in data:
+            self.player.reserves_count = int(data.get('reserves', 0))
+
+        # Update current player - handle both methods:
+        # 1. Old method: current_player field (full state)
+        # 2. New method: your_turn boolean (delta)
+        if 'your_turn' in data:
+            # Delta update uses your_turn boolean
+            your_turn = data.get('your_turn', '0')
+            is_my_turn = (your_turn == '1' or your_turn.lower() == 'true')
+
+            if is_my_turn:
+                self.current_player_name = self.player_name
+                self.player.is_current_player = True
+                if self.opponent:
+                    self.opponent.is_current_player = False
+            else:
+                self.current_player_name = self.opponent.name if self.opponent else ''
+                self.player.is_current_player = False
+                if self.opponent:
+                    self.opponent.is_current_player = True
+        elif 'current_player' in data:
+            # Full state uses current_player field
+            self.current_player_name = data.get('current_player', '')
+            self.player.is_current_player = (self.current_player_name == self.player_name)
+
+        # Update top card (if present)
+        if 'top_card' in data:
+            top_card_str = data.get('top_card', EMPTY_PILE_MARKER)
+            try:
+                self.top_card = Card(top_card_str)
+            except ValueError:
+                # Invalid card, use empty marker
+                self.top_card = Card(EMPTY_PILE_MARKER)
+
+        # Update must_play_low flag (if present)
+        # Handle both "true"/"false" strings and "1"/"0"
+        if 'must_play_low' in data:
+            ml_value = data.get('must_play_low', '0')
+            self.must_play_low = (ml_value == '1' or ml_value.lower() == 'true')
+
+        # Update pile info (if present)
+        if 'deck_size' in data:
+            self.deck_size = int(data.get('deck_size', 0))
+        if 'discard_pile_size' in data:
+            self.discard_pile_size = int(data.get('discard_pile_size', 0))
+
+        # Update opponent (if present)
         opponent_name = data.get('opponent_name', '')
         if opponent_name:
             if not self.opponent or self.opponent.name != opponent_name:
                 self.opponent = OpponentPlayer(opponent_name)
             self.opponent.update_from_game_state(data)
-            self.opponent.is_current_player = (self.current_player_name == opponent_name)
-        
+            # Update opponent's turn state
+            if 'current_player' in data:
+                self.opponent.is_current_player = (self.current_player_name == opponent_name)
+            elif 'your_turn' in data:
+                your_turn = data.get('your_turn', '0')
+                self.opponent.is_current_player = (your_turn == '0' or your_turn.lower() == 'false')
+
         # Update meta
         self.last_update = datetime.now()
         self.in_game = True

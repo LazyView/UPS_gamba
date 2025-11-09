@@ -29,6 +29,7 @@ enum class MessageType {
     PLAYER_RECONNECTED = 109,   // Server notifies about player reconnection
     GAME_RESUMED = 110,         // Server notifies about game resume (not used in final implementation)
     TURN_RESULT = 111,      // Server responds to turn actions
-    GAME_OVER = 112         // Server announces game completion
+    GAME_OVER = 112,        // Server announces game completion
+    TURN_UPDATE = 113       // Server sends delta update after turn (compact protocol)
 };
 #endif //MESSAGETYPE_H

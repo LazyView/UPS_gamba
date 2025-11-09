@@ -1,3 +1,0 @@
-0|||name=TestPlayer
-4|||
-2|||

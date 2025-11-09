@@ -150,6 +150,10 @@ class NetworkClient(QThread):
         self.running = False
         self.connected_flag = False
         self._cleanup_socket()
+
+        # Clear message buffer to discard any partial messages
+        self.buffer.clear()
+
         log_connection_event("DISCONNECTED")
         self.disconnected.emit()
     
