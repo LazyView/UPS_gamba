@@ -1,18 +1,4 @@
-CMakeLists.txt.user
-CMakeCache.txt
-CMakeFiles
-CMakeScripts
-Testing
-cmake_install.cmake
-install_manifest.txt
-compile_commands.json
-CTestTestfile.cmake
-_deps
-CMakeUserPresets.json
 UPS_Chlad/server/build/
-UPS_Chlad/.idea/
-UPS_Chlad/.claude/
-.claude/
 UPS_Chlad/ups_project
 UPS_Chlad/server/logs/
 UPS_Chlad/client/logs/
@@ -22,4 +8,3 @@ UPS_Chlad/.vscode/
 UPS_Chlad/client/tests
 __pycache__
 UPS_Chlad/server/gamba_server
-UPS_Chlad/changelog.txt
