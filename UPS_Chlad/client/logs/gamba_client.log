@@ -2365,3 +2365,30 @@ jp=User2|pc=2|pl=User1,User2|rf=true|st=ok
 2025-11-09 12:12:44 - GambaClient - INFO - Disconnect requested
 2025-11-09 12:12:44 - GambaClient - INFO - MainWindow closed
 2025-11-09 12:12:44 - GambaClient - INFO - Disconnect requested
+2025-11-09 12:25:16 - GambaClient - INFO - ======================================================================
+2025-11-09 12:25:16 - GambaClient - INFO - Gamba Client Logger Initialized
+2025-11-09 12:25:16 - GambaClient - INFO - ======================================================================
+2025-11-09 12:25:16 - GambaClient - INFO - ConnectionManager initialized
+2025-11-09 12:25:16 - GambaClient - INFO - MainWindow initialized
+2025-11-09 12:25:16 - GambaClient - INFO - Configuration loaded from gamba_client.conf
+2025-11-09 12:25:18 - GambaClient - INFO - Disconnect requested
+2025-11-09 12:25:18 - GambaClient - INFO - MainWindow closed
+2025-11-09 12:25:18 - GambaClient - INFO - Disconnect requested
+2025-11-09 12:30:02 - GambaClient - INFO - ======================================================================
+2025-11-09 12:30:02 - GambaClient - INFO - Gamba Client Logger Initialized
+2025-11-09 12:30:02 - GambaClient - INFO - ======================================================================
+2025-11-09 12:30:02 - GambaClient - INFO - ConnectionManager initialized
+2025-11-09 12:30:02 - GambaClient - INFO - MainWindow initialized
+2025-11-09 12:30:02 - GambaClient - INFO - Configuration loaded from gamba_client.conf
+2025-11-09 12:30:05 - GambaClient - INFO - Disconnect requested
+2025-11-09 12:30:05 - GambaClient - INFO - MainWindow closed
+2025-11-09 12:30:05 - GambaClient - INFO - Disconnect requested
+2025-11-09 12:30:11 - GambaClient - INFO - ======================================================================
+2025-11-09 12:30:11 - GambaClient - INFO - Gamba Client Logger Initialized
+2025-11-09 12:30:11 - GambaClient - INFO - ======================================================================
+2025-11-09 12:30:11 - GambaClient - INFO - ConnectionManager initialized
+2025-11-09 12:30:11 - GambaClient - INFO - MainWindow initialized
+2025-11-09 12:30:11 - GambaClient - INFO - Configuration loaded from gamba_client.conf
+2025-11-09 12:30:14 - GambaClient - INFO - Disconnect requested
+2025-11-09 12:30:14 - GambaClient - INFO - MainWindow closed
+2025-11-09 12:30:14 - GambaClient - INFO - Disconnect requested
