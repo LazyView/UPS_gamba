@@ -208,4 +208,8 @@
 
   Client: message_types.py, message_protocol.py, state.py, main_window.py, connection_manager.py
 
-  Everything is tested and working! Is there anything else you'd like to work on?
+
+  **Next Session**: Fix bug 
+      - if player disconnects manually and wants to connect as new user the connect window is in disabled state. (unblock it once user disconnects manually).
+      - Also fix, if start of the game fails, handle it gracefully and ublock UI.
+      - If I try to connect and it fails, handle it gracefully and unblock UI so i can try it again.

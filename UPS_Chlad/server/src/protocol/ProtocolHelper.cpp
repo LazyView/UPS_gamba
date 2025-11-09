@@ -107,7 +107,7 @@ ProtocolMessage ProtocolHelper::createGameOverResponse(const std::string& winner
 
 ProtocolMessage ProtocolHelper::createTurnUpdateResponse(
     const std::string& player_name,
-    const std::string& room_id,
+    const std::string& /* room_id */,
     const GameStateData& game_data)
 {
     ProtocolMessage msg(MessageType::TURN_UPDATE);

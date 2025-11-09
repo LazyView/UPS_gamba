@@ -14,7 +14,7 @@
 #include <vector>
 
 MessageHandler::MessageHandler(PlayerManager* pm, RoomManager* rm, MessageValidator* mv, Logger* lg, GameManager* gm)
-    : playerManager(pm), roomManager(rm), validator(mv), logger(lg), gameManager(gm) {}
+    : playerManager(pm), roomManager(rm), gameManager(gm), validator(mv), logger(lg) {}
 
 std::vector<ProtocolMessage> MessageHandler::processMessage(const std::string& raw_message, int client_socket) {
     if (!validator->isValidFormat(raw_message)) {
