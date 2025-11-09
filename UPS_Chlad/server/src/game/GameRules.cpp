@@ -88,7 +88,7 @@ bool GameRules::isBurnCard(const Card& card) {
 
 void GameRules::applySpecialCardEffects(const std::vector<Card>& cardsPlayed,
                                       std::vector<Card>& discardPile,
-                                      bool& clockwise,
+                                      bool& /* clockwise */,
                                       bool& mustPlaySevenOrLower) {
     // Reset special states first
     mustPlaySevenOrLower = false;

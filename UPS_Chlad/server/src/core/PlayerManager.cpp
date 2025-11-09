@@ -5,8 +5,8 @@
 #include "PlayerManager.h"
 
 Player::Player(const std::string& player_name, int socket)
-    : name(player_name), socket_fd(socket), connected(true),
-      room_id(""), temporarily_disconnected(false) {
+    : name(player_name), room_id(""), connected(true), socket_fd(socket),
+      temporarily_disconnected(false) {
 }
 
 std::string PlayerManager::connectPlayer(const std::string& player_name, int client_socket) {

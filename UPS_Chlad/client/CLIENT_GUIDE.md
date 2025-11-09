@@ -362,7 +362,7 @@ Be the first to get rid of all cards (hand + reserves).
 
 ### Setup
 - Each player: 3 hand cards + 3 reserve cards
-- Draw pile: Empty (all dealt at start)
+- Draw pile: 52 - 13 (each player cards and one on the discard pile)
 - Discard pile: Empty at start
 
 ### Turn Structure

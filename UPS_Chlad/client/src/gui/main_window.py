@@ -180,7 +180,10 @@ class MainWindow(QMainWindow):
         if not self.connection_dialog:
             self.connection_dialog = ConnectionDialog(self)
             self.connection_dialog.connect_requested.connect(self._on_connect_requested)
-        
+
+        # Reset dialog state to ensure UI is enabled
+        self.connection_dialog.set_connecting(False)
+
         # Show dialog
         self.connection_dialog.show()
         self.connection_dialog.raise_()
@@ -394,6 +397,10 @@ class MainWindow(QMainWindow):
             # If connection dialog is open, show error there
             if self.connection_dialog and self.connection_dialog.isVisible():
                 self.connection_dialog.show_error(error_msg)
+
+            # If in lobby and trying to start game, re-enable start button
+            if self.lobby_widget and self.current_screen == "lobby":
+                self.lobby_widget.reset_start_button()
 
             if self.game_widget:
                 self.game_widget.add_log_message(f"Error: {error_msg}", "error")

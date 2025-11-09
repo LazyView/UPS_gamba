@@ -262,18 +262,27 @@ class LobbyWidget(QWidget):
         # Emit signal
         self.start_game_requested.emit()
     
+    def reset_start_button(self):
+        """Reset start button state after a failed game start"""
+        # Only reset if button is in "Starting..." state
+        if self.start_button.text() == "Starting...":
+            if self.room_full:
+                self.start_button.setEnabled(True)
+            self.start_button.setText("Start Game")
+            self.logger.info("Start button reset after failed game start")
+
     def reset(self):
         """Reset lobby to initial state"""
         self.room_id = ""
         self.player_count = 0
         self.players = []
         self.room_full = False
-        
+
         self.room_id_label.setText("Room: -")
         self.player_count_label.setText("Players: 0/2")
         self.players_list.clear()
         self.status_label.setText("Waiting for players...")
         self.start_button.setEnabled(False)
         self.start_button.setText("Start Game")
-        
+
         self.logger.info("Lobby reset")
