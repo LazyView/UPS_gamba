@@ -331,13 +331,13 @@ void NetworkManager::handleClient(int client_socket) {
                             // Check if client should be disconnected
                             if (response.hasData("disconnect") && response.getData("disconnect") == "true") {
                                 logger->info("Disconnecting client " + std::to_string(client_socket) + " due to invalid message");
-                                
-                                // Mark player as temporarily disconnected before closing socket
+
+                                // Mark socket as disconnected (6-second timeout will apply before reconnection window)
                                 std::string disconnected_player = playerManager->getPlayerIdFromSocket(client_socket);
                                 if (!disconnected_player.empty()) {
                                     std::string room_id = playerManager->getPlayerRoom(disconnected_player);
-                                    playerManager->markPlayerTemporarilyDisconnected(disconnected_player);
-                                    
+                                    playerManager->markSocketDisconnected(disconnected_player);
+
                                     // Broadcast disconnection to room
                                     if (!room_id.empty()) {
                                         ProtocolMessage disconnect_broadcast(MessageType::PLAYER_DISCONNECTED);
@@ -345,14 +345,14 @@ void NetworkManager::handleClient(int client_socket) {
                                         disconnect_broadcast.room_id = room_id;
                                         disconnect_broadcast.setData("disconnected_player", disconnected_player);
                                         disconnect_broadcast.setData("status", "invalid_message");
-                                        
+
                                         broadcastToRoom(room_id, disconnect_broadcast, disconnected_player);
                                     }
                                 }
-                                
+
                                 // Remove socket mapping
                                 playerManager->removeSocketMapping(client_socket);
-                                
+
                                 // Close socket and exit
                                 shutdown(client_socket, SHUT_RDWR);
                                 close(client_socket);
@@ -377,22 +377,24 @@ void NetworkManager::handleClient(int client_socket) {
     }
     
     // Cleanup after client disconnects
-    logger->info("Client " + std::to_string(client_socket) + " disconnected, marking for reconnection window");
+    logger->info("Client " + std::to_string(client_socket) + " disconnected, waiting for 6-second timeout");
 
     // Get player name before removing socket mapping
     std::string disconnected_player = playerManager->getPlayerIdFromSocket(client_socket);
     if (!disconnected_player.empty()) {
         // Get room before marking disconnected
         std::string room_id = playerManager->getPlayerRoom(disconnected_player);
-        playerManager->markPlayerTemporarilyDisconnected(disconnected_player);
-        
+
+        // Mark socket as disconnected (6-second timeout will apply before reconnection window)
+        playerManager->markSocketDisconnected(disconnected_player);
+
         // Broadcast disconnection to room
         if (!room_id.empty()) {
             ProtocolMessage disconnect_broadcast(MessageType::PLAYER_DISCONNECTED);
             disconnect_broadcast.player_id = disconnected_player;
             disconnect_broadcast.room_id = room_id;
             disconnect_broadcast.setData("disconnected_player", disconnected_player);
-            disconnect_broadcast.setData("status", "temporarily_disconnected");
+            disconnect_broadcast.setData("status", "socket_closed");
 
             broadcastToRoom(room_id, disconnect_broadcast, disconnected_player);
         }
@@ -468,11 +470,13 @@ void NetworkManager::heartbeatMonitorLoop() {
             // Get players who need cleanup (2-minute reconnection window expired)
             std::vector<std::string> cleanup_players = playerManager->getDisconnectedPlayersForCleanup(120);
 
-            // Handle ping timeouts (mark as temporarily disconnected)
+            // Handle ping/socket timeouts (mark as temporarily disconnected)
+            // This applies the 6-second timeout before starting the 120-second reconnection window
             for (const std::string& player_name : timed_out_players) {
-                logger->info("Player '" + player_name + "' timed out - marking as temporarily disconnected");
+                logger->info("Player '" + player_name + "' timed out after 6 seconds - starting reconnection window");
                 std::string room_id = playerManager->getPlayerRoom(player_name);
 
+                // Mark as temporarily disconnected (starts the 120-second reconnection window)
                 playerManager->markPlayerTemporarilyDisconnected(player_name);
 
                 // Broadcast timeout to room

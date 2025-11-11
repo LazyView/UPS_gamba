@@ -201,7 +201,7 @@ std::vector<std::string> PlayerManager::getTimedOutPlayers(int timeout_seconds) 
             const std::string& player_name = pair.first;
             const Player& player = pair.second;
 
-            // Only check connected players for timeout
+            // Check connected players for PING timeout
             if (player.connected) {
                 auto ping_it = player_last_ping.find(player_name);
                 if (ping_it != player_last_ping.end()) {
@@ -209,6 +209,14 @@ std::vector<std::string> PlayerManager::getTimedOutPlayers(int timeout_seconds) 
                     if (time_since_last_ping > timeout_duration) {
                         timed_out_players.push_back(player_name);
                     }
+                }
+            }
+            // Check disconnected (but not yet temporarily_disconnected) players for socket close timeout
+            else if (!player.connected && !player.temporarily_disconnected) {
+                // Socket closed but 6-second timeout hasn't been applied yet
+                auto time_since_disconnect = now - player.disconnection_start;
+                if (time_since_disconnect > timeout_duration) {
+                    timed_out_players.push_back(player_name);
                 }
             }
         }
@@ -299,4 +307,24 @@ std::vector<std::string> PlayerManager::getDisconnectedPlayersForCleanup(int cle
         }
     }
     return cleanup_players;
+}
+
+void PlayerManager::markSocketDisconnected(const std::string& player_name) {
+    std::lock_guard<std::mutex> lock(players_mutex);
+
+    auto it = players.find(player_name);
+    if (it != players.end()) {
+        int socket_fd = it->second.socket_fd;
+
+        // Mark as disconnected but don't mark as temporarily_disconnected yet
+        // The heartbeat monitor will detect the timeout after 6 seconds
+        it->second.connected = false;
+        it->second.socket_fd = -1;
+        it->second.disconnection_start = std::chrono::steady_clock::now();
+
+        // Remove from socket mapping
+        if (socket_fd != -1) {
+            socket_to_player.erase(socket_fd);
+        }
+    }
 }

@@ -198,10 +198,17 @@ class MainWindow(QMainWindow):
         if not self.lobby_widget:
             self.lobby_widget = LobbyWidget(self)
             self.lobby_widget.start_game_requested.connect(self._on_start_game_requested)
+
+        # Add welcome message to info console
+        self.lobby_widget.add_info_message("Joined room", "success")
+
+        # Show lobby
+        if self.lobby_widget not in [self.stacked_widget.widget(i) for i in range(self.stacked_widget.count())]:
             self.stacked_widget.addWidget(self.lobby_widget)
         else:
             # Reset lobby widget if reusing (e.g., after game ended)
             self.lobby_widget.reset()
+            self.lobby_widget.add_info_message("Joined room", "success")
 
         # Switch to lobby
         self.stacked_widget.setCurrentWidget(self.lobby_widget)
@@ -462,13 +469,19 @@ class MainWindow(QMainWindow):
                 self.game_widget.add_log_message(f"{disconnected_player} disconnected", "error")
                 if self.game_state.opponent and self.game_state.opponent.name == disconnected_player:
                     self.game_widget.opponent_info.set_connected(False)
-        
+            # Also update lobby if visible
+            if self.lobby_widget and self.current_screen == 'lobby':
+                self.lobby_widget.show_player_disconnected(disconnected_player)
+
         elif msg_type == ServerMessageType.PLAYER_RECONNECTED:
             reconnected_player = message.get('data', {}).get('reconnected_player')
             if self.game_widget:
                 self.game_widget.add_log_message(f"{reconnected_player} reconnected", "success")
                 if self.game_state.opponent and self.game_state.opponent.name == reconnected_player:
                     self.game_widget.opponent_info.set_connected(True)
+            # Also update lobby if visible
+            if self.lobby_widget and self.current_screen == 'lobby':
+                self.lobby_widget.show_player_reconnected(reconnected_player)
     
     def _on_error(self, error_msg: str):
         """
@@ -499,6 +512,8 @@ class MainWindow(QMainWindow):
         self._update_status("Reconnecting...")
         if self.game_widget:
             self.game_widget.add_log_message("Connection lost - attempting auto-reconnect...", "system")
+        if self.lobby_widget and self.current_screen == 'lobby':
+            self.lobby_widget.add_info_message("Connection lost - attempting reconnect...", "error")
 
     def _on_reconnect_status(self, seconds_remaining: int):
         """
@@ -508,12 +523,16 @@ class MainWindow(QMainWindow):
             seconds_remaining: Seconds remaining in auto-reconnect window
         """
         self._update_status(f"Reconnecting... ({seconds_remaining}s remaining)")
+        if self.lobby_widget and self.current_screen == 'lobby':
+            self.lobby_widget.add_info_message(f"Reconnecting ({seconds_remaining}s remaining)...", "system")
 
     def _on_reconnected(self):
         """Handle successful reconnection"""
         self._update_status("Reconnected")
         if self.game_widget:
             self.game_widget.add_log_message("Reconnected successfully!", "success")
+        if self.lobby_widget and self.current_screen == 'lobby':
+            self.lobby_widget.add_info_message("Reconnected successfully!", "success")
     
     # ========================================================================
     # UI HELPERS
