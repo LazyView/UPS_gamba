@@ -9,7 +9,7 @@
 #include <fstream>
 
 struct ServerConfig {
-    std::string ip = "127.0.0.1";
+    std::string ip = "172.26.161.211";
     int port = 8080;
     int max_rooms = 10;
     int max_players_per_room = 6;

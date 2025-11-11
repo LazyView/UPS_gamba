@@ -38,6 +38,7 @@ public:
     // Connection management
     void updatePlayerConnection(const std::string& player_name, bool connected);
     void updatePlayerSocket(const std::string& player_name, int new_socket);
+    void markSocketDisconnected(const std::string& player_name);  // Mark socket closed, but wait for timeout before temp disconnect
 
     // Room management
     void setPlayerRoom(const std::string& player_name, const std::string& room_id);
