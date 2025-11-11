@@ -3,13 +3,14 @@ Lobby widget - displayed after joining a room, waiting for game to start.
 """
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QGroupBox, QListWidget, QFrame
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 
 from utils import get_logger
+from .widgets import GameLogWidget
 
 
 class LobbyWidget(QWidget):
@@ -63,10 +64,10 @@ class LobbyWidget(QWidget):
     
     def _setup_ui(self):
         """Setup user interface"""
-        layout = QVBoxLayout()
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
+
         # Title
         title = QLabel("Game Lobby")
         title.setAlignment(Qt.AlignCenter)
@@ -74,27 +75,35 @@ class LobbyWidget(QWidget):
         title_font.setPointSize(24)
         title_font.setBold(True)
         title.setFont(title_font)
-        layout.addWidget(title)
-        
+        main_layout.addWidget(title)
+
+        # Content layout with lobby info on left and info console on right
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(15)
+
+        # Left side - Lobby information
+        left_layout = QVBoxLayout()
+        left_layout.setSpacing(15)
+
         # Room info group
         room_group = QGroupBox("Room Information")
         room_layout = QVBoxLayout()
-        
+
         self.room_id_label = QLabel("Room: -")
         self.room_id_label.setStyleSheet("font-size: 14px;")
         room_layout.addWidget(self.room_id_label)
-        
+
         self.player_count_label = QLabel("Players: 0/2")
         self.player_count_label.setStyleSheet("font-size: 14px;")
         room_layout.addWidget(self.player_count_label)
-        
+
         room_group.setLayout(room_layout)
-        layout.addWidget(room_group)
-        
+        left_layout.addWidget(room_group)
+
         # Players list group
         players_group = QGroupBox("Players")
         players_layout = QVBoxLayout()
-        
+
         self.players_list = QListWidget()
         self.players_list.setStyleSheet("""
             QListWidget {
@@ -108,10 +117,10 @@ class LobbyWidget(QWidget):
         """)
         self.players_list.setMaximumHeight(150)
         players_layout.addWidget(self.players_list)
-        
+
         players_group.setLayout(players_layout)
-        layout.addWidget(players_group)
-        
+        left_layout.addWidget(players_group)
+
         # Status label
         self.status_label = QLabel("Waiting for players...")
         self.status_label.setAlignment(Qt.AlignCenter)
@@ -123,12 +132,12 @@ class LobbyWidget(QWidget):
                 padding: 10px;
             }
         """)
-        layout.addWidget(self.status_label)
-        
+        left_layout.addWidget(self.status_label)
+
         # Buttons
         button_layout = QHBoxLayout()
         button_layout.addStretch()
-        
+
         self.start_button = QPushButton("Start Game")
         self.start_button.setEnabled(False)
         self.start_button.clicked.connect(self._on_start_clicked)
@@ -152,14 +161,24 @@ class LobbyWidget(QWidget):
             }
         """)
         button_layout.addWidget(self.start_button)
-        
+
         button_layout.addStretch()
-        layout.addLayout(button_layout)
-        
-        # Add stretch at bottom
-        layout.addStretch()
-        
-        self.setLayout(layout)
+        left_layout.addLayout(button_layout)
+
+        # Add stretch at bottom of left side
+        left_layout.addStretch()
+
+        # Add left layout to content layout
+        content_layout.addLayout(left_layout, stretch=2)
+
+        # Right side - Info Console
+        self.info_console = GameLogWidget()
+        content_layout.addWidget(self.info_console, stretch=1)
+
+        # Add content layout to main layout
+        main_layout.addLayout(content_layout)
+
+        self.setLayout(main_layout)
     
     def update_room_info(self, room_id: str, player_count: int, players: list, room_full: bool):
         """
@@ -216,7 +235,7 @@ class LobbyWidget(QWidget):
     def show_player_joined(self, player_name: str):
         """
         Show notification that a player joined.
-        
+
         Args:
             player_name: Name of player who joined
         """
@@ -229,13 +248,16 @@ class LobbyWidget(QWidget):
                 padding: 10px;
             }
         """)
-        
+
+        # Add to info console
+        self.info_console.add_message(f"{player_name} joined", "success")
+
         self.logger.info(f"Player joined: {player_name}")
-    
+
     def show_player_left(self, player_name: str):
         """
         Show notification that a player left.
-        
+
         Args:
             player_name: Name of player who left
         """
@@ -248,8 +270,41 @@ class LobbyWidget(QWidget):
                 padding: 10px;
             }
         """)
-        
+
+        # Add to info console
+        self.info_console.add_message(f"{player_name} left", "error")
+
         self.logger.info(f"Player left: {player_name}")
+
+    def show_player_disconnected(self, player_name: str):
+        """
+        Show notification that a player disconnected.
+
+        Args:
+            player_name: Name of player who disconnected
+        """
+        self.info_console.add_message(f"{player_name} disconnected", "error")
+        self.logger.info(f"Player disconnected: {player_name}")
+
+    def show_player_reconnected(self, player_name: str):
+        """
+        Show notification that a player reconnected.
+
+        Args:
+            player_name: Name of player who reconnected
+        """
+        self.info_console.add_message(f"{player_name} reconnected", "success")
+        self.logger.info(f"Player reconnected: {player_name}")
+
+    def add_info_message(self, message: str, msg_type: str = "normal"):
+        """
+        Add a message to the info console.
+
+        Args:
+            message: Message text
+            msg_type: Message type ('normal', 'system', 'error', 'success')
+        """
+        self.info_console.add_message(message, msg_type)
     
     def _on_start_clicked(self):
         """Handle start button click"""
@@ -284,5 +339,6 @@ class LobbyWidget(QWidget):
         self.status_label.setText("Waiting for players...")
         self.start_button.setEnabled(False)
         self.start_button.setText("Start Game")
+        self.info_console.clear()
 
         self.logger.info("Lobby reset")
