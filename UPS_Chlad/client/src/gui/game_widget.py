@@ -437,7 +437,8 @@ class GameWidget(QWidget):
         )
         
         if not is_valid:
-            QMessageBox.warning(self, "Invalid Play", error)
+            # Show error in game log (non-blocking) instead of blocking dialog
+            self.game_log.add_error(f"Invalid play: {error}")
             return
         
         # Build card string

@@ -258,19 +258,29 @@ class MainWindow(QMainWindow):
                 self.connection_dialog.show_error("Failed to connect to server")
     
     def _disconnect(self):
-        """Disconnect from server"""
+        """Disconnect from server (non-blocking confirmation)"""
         if self.connection_manager.is_connected():
-            reply = QMessageBox.question(
-                self,
-                "Disconnect",
-                "Are you sure you want to disconnect?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
+            # Use non-blocking dialog for confirmation
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Disconnect")
+            msg_box.setText("Are you sure you want to disconnect?")
+            msg_box.setIcon(QMessageBox.Question)
+            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg_box.setDefaultButton(QMessageBox.No)
+            msg_box.setWindowModality(Qt.NonModal)  # Make it truly non-blocking
+            msg_box.setAttribute(Qt.WA_DeleteOnClose)  # Auto-cleanup when closed
 
-            if reply == QMessageBox.Yes:
-                self.connection_manager.disconnect()
-                self._update_status("Disconnected")
+            # Handle response asynchronously
+            msg_box.buttonClicked.connect(
+                lambda btn: self._handle_disconnect_response(msg_box, btn)
+            )
+            msg_box.show()  # Non-blocking
+
+    def _handle_disconnect_response(self, msg_box, button):
+        """Handle disconnect confirmation response"""
+        if msg_box.standardButton(button) == QMessageBox.Yes:
+            self.connection_manager.disconnect()
+            self._update_status("Disconnected")
 
     def _reconnect(self):
         """Reconnect to server (requires active session)"""
@@ -288,23 +298,11 @@ class MainWindow(QMainWindow):
             current_state = self.connection_manager.state
 
             if current_state not in [constants.STATE_DISCONNECTED, constants.STATE_RECONNECTING]:
-                QMessageBox.information(
-                    self,
-                    "Already Connected",
-                    "You are already connected to the server.",
-                    QMessageBox.Ok
-                )
+                # Use status bar instead of blocking dialog
+                self.status_bar.showMessage("Already connected to server", 3000)
             else:
-                QMessageBox.warning(
-                    self,
-                    "Reconnect Failed",
-                    "Unable to reconnect. No active session found.\n\n"
-                    "This can happen if:\n"
-                    "• The client was restarted\n"
-                    "• You haven't connected yet this session\n\n"
-                    "Please use Connect to establish a new connection.",
-                    QMessageBox.Ok
-                )
+                # Use status bar instead of blocking dialog
+                self.status_bar.showMessage("Reconnect failed: No active session. Please use Connect.", 5000)
 
     def _on_start_game_requested(self):
         """Handle start game request from lobby"""
@@ -475,13 +473,23 @@ class MainWindow(QMainWindow):
     def _on_error(self, error_msg: str):
         """
         Handle error from connection manager.
-        
+
         Args:
             error_msg: Error message
         """
         self.logger.error(f"Connection error: {error_msg}")
+
+        # Suppress error notifications during auto-reconnection to avoid spam
+        # (status bar already shows "Reconnecting... (Xs remaining)")
+        current_state = self.connection_manager.get_state()
+        if current_state == constants.STATE_RECONNECTING:
+            # Don't show error dialogs or log messages for reconnection attempts
+            # The user already knows we're reconnecting from the status bar
+            return
+
+        # Show error dialog for non-reconnection errors
         self._show_error(error_msg)
-        
+
         # Show error in connection dialog if it's open
         if self.connection_dialog and self.connection_dialog.isVisible():
             self.connection_dialog.show_error(error_msg)
@@ -522,17 +530,23 @@ class MainWindow(QMainWindow):
     
     def _show_error(self, message: str):
         """
-        Show error dialog.
-        
+        Show error message (non-blocking).
+
         Args:
             message: Error message
         """
-        QMessageBox.critical(
-            self,
-            "Error",
-            message,
-            QMessageBox.Ok
-        )
+        # Use status bar for non-critical errors (non-blocking)
+        self.status_bar.showMessage(f"Error: {message}", 5000)  # Show for 5 seconds
+
+        # Also create non-blocking error dialog for critical errors
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Error")
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setWindowModality(Qt.NonModal)  # Make it truly non-blocking
+        msg_box.setAttribute(Qt.WA_DeleteOnClose)  # Auto-cleanup when closed
+        msg_box.show()  # Non-blocking
     
     def _show_game_over(self, winner: str):
         """
@@ -556,45 +570,67 @@ class MainWindow(QMainWindow):
         msg_box.setText(message)
         msg_box.setIcon(QMessageBox.Information)
         msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setWindowModality(Qt.NonModal)  # Make it truly non-blocking
+        msg_box.setAttribute(Qt.WA_DeleteOnClose)  # Auto-cleanup when closed
         msg_box.show()  # Non-blocking
 
         log_game_event("GAME_OVER", f"Winner: {winner}")
     
     def _show_about(self):
-        """Show about dialog"""
-        QMessageBox.about(
-            self,
-            "About Gamba",
+        """Show about dialog (non-blocking)"""
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("About Gamba")
+        msg_box.setText(
             "<h2>Gamba Card Game</h2>"
             "<p>A multiplayer card game client.</p>"
             "<p><b>Version:</b> 1.0</p>"
             "<p><b>Author:</b> Your Name</p>"
             "<p>Built with PyQt5 and Python.</p>"
         )
+        msg_box.setIcon(QMessageBox.Information)
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setWindowModality(Qt.NonModal)  # Make it truly non-blocking
+        msg_box.setAttribute(Qt.WA_DeleteOnClose)  # Auto-cleanup when closed
+        msg_box.show()  # Non-blocking
     
     # ========================================================================
     # WINDOW EVENTS
     # ========================================================================
     
     def closeEvent(self, event):
-        """Handle window close event"""
+        """Handle window close event (non-blocking confirmation)"""
         # Ask for confirmation if connected
         if self.connection_manager.is_connected():
-            reply = QMessageBox.question(
-                self,
-                "Exit",
-                "Are you sure you want to exit?\nYou will be disconnected from the game.",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
+            # Ignore the event initially
+            event.ignore()
+
+            # Show non-blocking confirmation dialog
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Exit")
+            msg_box.setText("Are you sure you want to exit?\nYou will be disconnected from the game.")
+            msg_box.setIcon(QMessageBox.Question)
+            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg_box.setDefaultButton(QMessageBox.No)
+            msg_box.setWindowModality(Qt.NonModal)  # Make it truly non-blocking
+            msg_box.setAttribute(Qt.WA_DeleteOnClose)  # Auto-cleanup when closed
+
+            # Handle response asynchronously
+            msg_box.buttonClicked.connect(
+                lambda btn: self._handle_close_response(msg_box, btn)
             )
-            
-            if reply == QMessageBox.No:
-                event.ignore()
-                return
-        
-        # Disconnect
+            msg_box.show()  # Non-blocking
+            return
+
+        # If not connected, close immediately
         self.connection_manager.disconnect()
-        
-        # Accept close
         event.accept()
         self.logger.info("MainWindow closed")
+
+    def _handle_close_response(self, msg_box, button):
+        """Handle close confirmation response"""
+        if msg_box.standardButton(button) == QMessageBox.Yes:
+            # User confirmed exit
+            self.connection_manager.disconnect()
+            self.logger.info("MainWindow closed")
+            self.close()  # Close the window programmatically
+        # If No, do nothing (window stays open)

@@ -251,22 +251,24 @@ class ConnectionDialog(QDialog):
     def show_error(self, message: str):
         """
         Show error message.
-        
+
         Args:
             message: Error message to display
         """
         self.status_label.setText(f"Error: {message}")
         self.status_label.setStyleSheet("color: red; font-weight: bold;")
         self.set_connecting(False)
-        
-        # Also show as message box for critical errors
+
+        # Also show as non-blocking message box for critical errors
         if "refused" in message.lower() or "timeout" in message.lower():
-            QMessageBox.critical(
-                self,
-                "Connection Error",
-                message,
-                QMessageBox.Ok
-            )
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Connection Error")
+            msg_box.setText(message)
+            msg_box.setIcon(QMessageBox.Critical)
+            msg_box.setStandardButtons(QMessageBox.Ok)
+            msg_box.setWindowModality(Qt.NonModal)  # Make it truly non-blocking
+            msg_box.setAttribute(Qt.WA_DeleteOnClose)  # Auto-cleanup when closed
+            msg_box.show()  # Non-blocking
     
     def show_success(self):
         """Show success message and close dialog"""
