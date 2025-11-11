@@ -19,8 +19,8 @@ struct ServerConfig {
     bool enable_file_logging = true;
 
     // Heartbeat timeout settings
-    int player_timeout_seconds = 60;        // How long before player is considered disconnected
-    int heartbeat_check_interval = 10;      // How often to check for timeouts (in seconds)
+    int player_timeout_seconds = 6;        // How long before player is considered disconnected
+    int heartbeat_check_interval = 2;      // How often to check for timeouts (in seconds)
 
     bool loadFromFile(const std::string& filename);
     void parseCommandLine(int argc, char* argv[]);

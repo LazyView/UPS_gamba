@@ -11,9 +11,9 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080
 
 # Timeouts (in seconds)
-PING_INTERVAL = 10  # Send PING every 30 seconds
-PONG_TIMEOUT = 10   # Expect PONG within 10 seconds of PING
-SERVER_TIMEOUT = 60  # Server disconnects after 60s without heartbeat
+PING_INTERVAL = 2  # Send PING every 2 seconds
+PONG_TIMEOUT = 2   # Expect PONG within 2 seconds of PING
+SERVER_TIMEOUT = 6  # Server disconnects after 6s without heartbeat (3 missed pings)
 RECONNECT_WINDOW = 120  # Server keeps player for 120s after disconnect
 
 # Connection retry settings
