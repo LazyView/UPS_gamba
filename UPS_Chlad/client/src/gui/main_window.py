@@ -603,7 +603,7 @@ class MainWindow(QMainWindow):
             "<h2>Gamba Card Game</h2>"
             "<p>A multiplayer card game client.</p>"
             "<p><b>Version:</b> 1.0</p>"
-            "<p><b>Author:</b> Your Name</p>"
+            "<p><b>Author:</b> Filip Chlad</p>"
             "<p>Built with PyQt5 and Python.</p>"
         )
         msg_box.setIcon(QMessageBox.Information)
