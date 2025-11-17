@@ -11,7 +11,7 @@
 Logger::Logger(const std::string& filePath) {
     this->filePath = filePath;
     this->logToFile = true;           // Initialize first!
-    this->logToConsole = true;        // Initialize first!
+    this->logToConsole = false;        // Initialize first!
     this->logLevelMinimum = LogLevel::INFO;  // Initialize first!
 
     if (logToFile) {

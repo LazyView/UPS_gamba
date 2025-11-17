@@ -77,11 +77,11 @@ class GameLogger:
         self._logger.addHandler(file_handler)
         
         # Console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(self._get_log_level(LOG_LEVEL_CONSOLE))
-        console_formatter = logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT)
-        console_handler.setFormatter(console_formatter)
-        self._logger.addHandler(console_handler)
+        # console_handler = logging.StreamHandler()
+        # console_handler.setLevel(self._get_log_level(LOG_LEVEL_CONSOLE))
+        # console_formatter = logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT)
+        # console_handler.setFormatter(console_formatter)
+        # self._logger.addHandler(console_handler)
         
         # Store reference
         GameLogger._logger = self._logger
