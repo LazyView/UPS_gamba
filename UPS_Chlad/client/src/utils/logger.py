@@ -59,7 +59,7 @@ class GameLogger:
         
         # Create logger
         self._logger = logging.getLogger("GambaClient")
-        self._logger.setLevel(logging.DEBUG)  # Capture everything
+        self._logger.setLevel(logging.INFO)  # Capture everything
         
         # Remove existing handlers (in case of re-initialization)
         self._logger.handlers.clear()

@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
     try {
         // Initialize all components
         Logger logger(config.log_file);
-        logger.setLogLevel(LogLevel::DEBUG);
+        logger.setLogLevel(LogLevel::INFO);
         logger.setLogToFile(config.enable_file_logging);
         PlayerManager playerManager;
         RoomManager roomManager;
