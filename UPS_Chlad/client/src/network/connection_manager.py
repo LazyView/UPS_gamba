@@ -268,14 +268,17 @@ class ConnectionManager(QObject):
     
     def _handle_disconnection(self):
         """Handle unexpected disconnection"""
-        self.disconnect_time = datetime.now()
-        
+        # Only set disconnect_time on initial disconnect, not during reconnection attempts
+        if self.state != constants.STATE_RECONNECTING:
+            self.disconnect_time = datetime.now()
+
         # Stop heartbeat
         if self.heartbeat:
             self.heartbeat.stop()
-        
-        # Start auto-reconnection
-        self._start_auto_reconnect()
+
+        # Start auto-reconnection (or continue existing reconnection)
+        if self.state != constants.STATE_RECONNECTING:
+            self._start_auto_reconnect()
     
     def _start_auto_reconnect(self):
         """Start automatic reconnection attempts"""
@@ -396,7 +399,7 @@ class ConnectionManager(QObject):
         if self.state != constants.STATE_DISCONNECTED and not self.intentional_disconnect:
             self._handle_disconnection()
     
-        # Reset flag - ADD THIS LINE
+        # Reset flag
         self.intentional_disconnect = False
     
     def _on_message_received(self, message_dict: dict):
