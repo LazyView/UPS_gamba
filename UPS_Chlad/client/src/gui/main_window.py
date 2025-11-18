@@ -14,6 +14,7 @@ Separation of Concerns:
 - Widgets: UI display and user input
 """
 
+import time
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QStackedWidget,
     QMessageBox, QMenuBar, QMenu, QAction, QStatusBar
@@ -388,10 +389,13 @@ class MainWindow(QMainWindow):
     def _on_message_received(self, message: dict):
         """
         Handle message from server.
-        
+
         Args:
             message: Parsed message dictionary
         """
+        # ===== TIMING: Measure GUI message handling =====
+        gui_start = time.perf_counter()
+
         msg_type = message.get('type')
         
         # Handle specific messages
@@ -417,7 +421,12 @@ class MainWindow(QMainWindow):
             # Update game widget if visible
             # Note: Screen switching is handled by state change to IN_GAME
             if self.game_widget and self.current_screen == "game":
+                # ===== TIMING: Measure GUI update_game_state =====
+                update_start = time.perf_counter()
                 self.game_widget.update_game_state()
+                update_end = time.perf_counter()
+                update_duration = (update_end - update_start) * 1000
+                self.logger.info(f"[TIMING] GUI update_game_state (GAME_STATE): {update_duration:.3f} ms")
 
         elif msg_type == ServerMessageType.TURN_UPDATE:
             # Update game state (delta update - used during normal gameplay)
@@ -426,7 +435,12 @@ class MainWindow(QMainWindow):
 
             # Update game widget if visible
             if self.game_widget and self.current_screen == "game":
+                # ===== TIMING: Measure GUI update_game_state =====
+                update_start = time.perf_counter()
                 self.game_widget.update_game_state()
+                update_end = time.perf_counter()
+                update_duration = (update_end - update_start) * 1000
+                self.logger.info(f"[TIMING] GUI update_game_state (TURN_UPDATE): {update_duration:.3f} ms")
 
         elif msg_type == ServerMessageType.TURN_RESULT:
             # Log turn result
@@ -482,7 +496,12 @@ class MainWindow(QMainWindow):
             # Also update lobby if visible
             if self.lobby_widget and self.current_screen == 'lobby':
                 self.lobby_widget.show_player_reconnected(reconnected_player)
-    
+
+        # ===== TIMING: End of GUI message handling =====
+        gui_end = time.perf_counter()
+        gui_duration = (gui_end - gui_start) * 1000
+        self.logger.info(f"[TIMING] Total GUI handled {msg_type}: {gui_duration:.3f} ms")
+
     def _on_error(self, error_msg: str):
         """
         Handle error from connection manager.

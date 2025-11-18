@@ -12,6 +12,7 @@
 #include "Logger.h"
 #include <sstream>
 #include <vector>
+#include <chrono>
 
 MessageHandler::MessageHandler(PlayerManager* pm, RoomManager* rm, MessageValidator* mv, Logger* lg, GameManager* gm)
     : playerManager(pm), roomManager(rm), gameManager(gm), validator(mv), logger(lg) {}
@@ -83,8 +84,16 @@ std::vector<ProtocolMessage> MessageHandler::processMessage(const std::string& r
 }
 
 std::vector<ProtocolMessage> MessageHandler::handlePing(const std::string& player_name) {
+    // ===== TIMING: Measure PING handling (should be very fast) =====
+    auto ping_start = std::chrono::high_resolution_clock::now();
     playerManager->updateLastPing(player_name);
-    return {ProtocolHelper::createPongResponse()};
+    auto pong_response = ProtocolHelper::createPongResponse();
+    auto ping_end = std::chrono::high_resolution_clock::now();
+    auto ping_duration = std::chrono::duration_cast<std::chrono::microseconds>(ping_end - ping_start).count();
+
+    logger->info("[TIMING] PING handling: " + std::to_string(ping_duration) + " μs (should be <100 μs)");
+
+    return {pong_response};
 }
 
 std::vector<ProtocolMessage> MessageHandler::handleConnect(const ProtocolMessage& msg, int client_socket) {
@@ -298,12 +307,21 @@ std::vector<ProtocolMessage> MessageHandler::handleStartGame(const std::string& 
     
     // 2. GAME_STATE for each player in room
     std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
-    
+
+    // ===== TIMING: Measure initial game state generation =====
+    auto game_init_start = std::chrono::high_resolution_clock::now();
+
     for (const std::string& target_player : room_players) {
         try {
+            // ===== TIMING: Per-player initial state generation =====
+            auto player_init_start = std::chrono::high_resolution_clock::now();
             // Get game state data from GameManager
             GameStateData game_data = gameManager->getGameStateForPlayer(roomManager, room_id, target_player);
-            
+            auto player_init_end = std::chrono::high_resolution_clock::now();
+            auto player_init_duration = std::chrono::duration_cast<std::chrono::microseconds>(player_init_end - player_init_start).count();
+
+            logger->info("[TIMING] Initial game state for player '" + target_player + "': " + std::to_string(player_init_duration) + " μs");
+
             if (game_data.valid) {
                 // Convert to ProtocolMessage
                 ProtocolMessage game_state = ProtocolHelper::createGameStateResponse(target_player, room_id, game_data);
@@ -317,6 +335,12 @@ std::vector<ProtocolMessage> MessageHandler::handleStartGame(const std::string& 
             logger->error("Failed to get game state for player '" + target_player + "': " + e.what());
         }
     }
+
+    // ===== TIMING: Total initial game state generation =====
+    auto game_init_end = std::chrono::high_resolution_clock::now();
+    auto game_init_duration = std::chrono::duration_cast<std::chrono::microseconds>(game_init_end - game_init_start).count();
+    logger->info("[TIMING] Total initial game state generation: " + std::to_string(game_init_duration) + " μs (" +
+                std::to_string(game_init_duration / 1000.0) + " ms)");
     
     logger->info("Returning " + std::to_string(responses.size()) + " messages for game start");
     
@@ -447,9 +471,18 @@ std::vector<ProtocolMessage> MessageHandler::handlePlayCards(const ProtocolMessa
     // c. Send TURN_UPDATE (delta) to all players
     std::vector<std::string> room_players = roomManager->getRoomPlayers(room_id);
 
+    // ===== TIMING: Measure game state generation for all players =====
+    auto game_state_start = std::chrono::high_resolution_clock::now();
+
     for (const std::string& target_player : room_players) {
         try {
+            // ===== TIMING: Measure per-player game state generation =====
+            auto player_state_start = std::chrono::high_resolution_clock::now();
             GameStateData game_data = gameManager->getGameStateForPlayer(roomManager, room_id, target_player);
+            auto player_state_end = std::chrono::high_resolution_clock::now();
+            auto player_state_duration = std::chrono::duration_cast<std::chrono::microseconds>(player_state_end - player_state_start).count();
+
+            logger->info("[TIMING] getGameStateForPlayer('" + target_player + "'): " + std::to_string(player_state_duration) + " μs");
 
             if (game_data.valid) {
                 // Use TURN_UPDATE for normal gameplay (compact delta)
@@ -464,6 +497,12 @@ std::vector<ProtocolMessage> MessageHandler::handlePlayCards(const ProtocolMessa
             logger->error("Failed to get game state for player '" + target_player + "': " + e.what());
         }
     }
+
+    // ===== TIMING: Total game state generation time =====
+    auto game_state_end = std::chrono::high_resolution_clock::now();
+    auto game_state_duration = std::chrono::duration_cast<std::chrono::microseconds>(game_state_end - game_state_start).count();
+    logger->info("[TIMING] Total game state generation for " + std::to_string(room_players.size()) + " players: " +
+                std::to_string(game_state_duration) + " μs (" + std::to_string(game_state_duration / 1000.0) + " ms)");
     
     logger->info("Player '" + player_name + "' played cards, returning " + std::to_string(responses.size()) + " messages");
     

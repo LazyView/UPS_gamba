@@ -12,7 +12,7 @@ DEFAULT_PORT = 8080
 
 # Timeouts (in seconds)
 PING_INTERVAL = 2  # Send PING every 2 seconds
-PONG_TIMEOUT = 2   # Expect PONG within 2 seconds of PING
+PONG_TIMEOUT = 5   # Expect PONG within 5 seconds of PING (increased for network jitter tolerance)
 SERVER_TIMEOUT = 6  # Server disconnects after 6s without heartbeat (3 missed pings)
 RECONNECT_WINDOW = 120  # Server keeps player for 120s after disconnect
 

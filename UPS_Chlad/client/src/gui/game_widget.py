@@ -9,14 +9,16 @@ This is the complete game interface that shows:
 - Game log
 """
 
+import time
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QScrollArea, QMessageBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 
 from game import Card, GameState, GameRules
+from utils import get_logger
 from .widgets import CardWidget, EmptyCardSlot, PlayerInfoWidget, GameLogWidget
 
 
@@ -55,10 +57,11 @@ class GameWidget(QWidget):
             parent: Parent widget
         """
         super().__init__(parent)
-        
+
         self.game_state = game_state
         self.selected_cards = []  # List of CardWidget objects
-        
+        self.logger = get_logger()
+
         self._setup_ui()
         
     def _setup_ui(self):
@@ -367,20 +370,37 @@ class GameWidget(QWidget):
     
     def _update_hand(self):
         """Update hand display"""
+        # ===== TIMING: Measure _update_hand performance =====
+        hand_start = time.perf_counter()
+
         # Clear existing cards
+        delete_start = time.perf_counter()
+        card_count = 0
         while self.hand_layout.count() > 1:  # Keep the stretch
             item = self.hand_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        
+                card_count += 1
+        delete_end = time.perf_counter()
+        delete_duration = (delete_end - delete_start) * 1000
+
         # Clear selection
         self.selected_cards = []
-        
+
         # Add cards
+        create_start = time.perf_counter()
+        new_card_count = len(self.game_state.player.hand)
         for card in self.game_state.player.hand:
             card_widget = CardWidget(card)
             card_widget.clicked.connect(self._on_card_clicked)
             self.hand_layout.insertWidget(self.hand_layout.count() - 1, card_widget)
+        create_end = time.perf_counter()
+        create_duration = (create_end - create_start) * 1000
+
+        # ===== TIMING: End of _update_hand =====
+        hand_end = time.perf_counter()
+        hand_duration = (hand_end - hand_start) * 1000
+        self.logger.info(f"[TIMING] _update_hand: {hand_duration:.3f} ms (delete {card_count} cards: {delete_duration:.3f} ms, create {new_card_count} cards: {create_duration:.3f} ms)")
     
     def _enable_actions(self):
         """Enable action buttons based on game state"""

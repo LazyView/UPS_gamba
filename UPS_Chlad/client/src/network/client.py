@@ -6,6 +6,7 @@ All communication with the main thread is via Qt signals (thread-safe).
 """
 
 import socket
+import time
 from typing import Optional
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -216,11 +217,29 @@ class NetworkClient(QThread):
                 # Decode and add to buffer
                 decoded = data.decode('utf-8')
                 complete_messages = self.buffer.add_data(decoded)
-                
+
+                # ===== TIMING: Measure message processing in network thread =====
+                if complete_messages:
+                    batch_start = time.perf_counter()
+                    self.logger.info(f"[TIMING] Processing {len(complete_messages)} message(s) in network thread")
+
                 # Process each complete message
                 for raw_message in complete_messages:
+                    msg_start = time.perf_counter()
                     log_message_received(raw_message)
                     self._process_message(raw_message)
+                    msg_end = time.perf_counter()
+                    msg_duration = (msg_end - msg_start) * 1000  # Convert to ms
+
+                    # Get message type for logging
+                    msg_type = raw_message.split('|')[0] if '|' in raw_message else 'UNKNOWN'
+                    self.logger.info(f"[TIMING] Network thread processed {msg_type}: {msg_duration:.3f} ms")
+
+                # ===== TIMING: Total batch processing time =====
+                if complete_messages:
+                    batch_end = time.perf_counter()
+                    batch_duration = (batch_end - batch_start) * 1000
+                    self.logger.info(f"[TIMING] Total batch processing: {batch_duration:.3f} ms for {len(complete_messages)} messages")
                 
             except socket.timeout:
                 # Timeout is normal - just means no data received

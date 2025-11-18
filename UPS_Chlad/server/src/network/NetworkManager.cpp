@@ -229,13 +229,25 @@ void NetworkManager::handleClient(int client_socket) {
                 logger->debug("Processing complete message: '" + complete_message + "'");
 
                 if (!complete_message.empty()) {
+                    // ===== TIMING: Start measuring total message processing =====
+                    auto msg_start_time = std::chrono::high_resolution_clock::now();
+
                     logger->debug("Received message from client " + std::to_string(client_socket) + ": " + complete_message);
 
                     // Process message through MessageHandler - NOW RETURNS VECTOR
                     try {
+                        // ===== TIMING: Measure message handler processing =====
+                        auto handler_start = std::chrono::high_resolution_clock::now();
                         std::vector<ProtocolMessage> responses = messageHandler->processMessage(complete_message, client_socket);
-                        
+                        auto handler_end = std::chrono::high_resolution_clock::now();
+                        auto handler_duration = std::chrono::duration_cast<std::chrono::microseconds>(handler_end - handler_start).count();
+
+                        logger->info("[TIMING] MessageHandler processing: " + std::to_string(handler_duration) + " μs (" +
+                                    std::to_string(handler_duration / 1000.0) + " ms) for message: " + complete_message.substr(0, 50));
                         logger->debug("MessageHandler returned " + std::to_string(responses.size()) + " response(s)");
+
+                        // ===== TIMING: Measure response sending =====
+                        auto send_start = std::chrono::high_resolution_clock::now();
 
                         // Process each response
                         for (const ProtocolMessage& response : responses) {
@@ -359,7 +371,23 @@ void NetworkManager::handleClient(int client_socket) {
                                 return;  // Exit handleClient immediately
                             }
                         }
-                        
+
+                        // ===== TIMING: End of response sending =====
+                        auto send_end = std::chrono::high_resolution_clock::now();
+                        auto send_duration = std::chrono::duration_cast<std::chrono::microseconds>(send_end - send_start).count();
+
+                        logger->info("[TIMING] Response sending: " + std::to_string(send_duration) + " μs (" +
+                                    std::to_string(send_duration / 1000.0) + " ms) for " + std::to_string(responses.size()) + " responses");
+
+                        // ===== TIMING: Total message processing =====
+                        auto msg_end_time = std::chrono::high_resolution_clock::now();
+                        auto msg_total_duration = std::chrono::duration_cast<std::chrono::microseconds>(msg_end_time - msg_start_time).count();
+
+                        logger->info("[TIMING] TOTAL message processing: " + std::to_string(msg_total_duration) + " μs (" +
+                                    std::to_string(msg_total_duration / 1000.0) + " ms) | Handler: " +
+                                    std::to_string(handler_duration / 1000.0) + " ms | Sending: " +
+                                    std::to_string(send_duration / 1000.0) + " ms");
+
                     } catch (const std::exception& e) {
                         logger->error("Error processing message from client " + std::to_string(client_socket) + ": " + e.what());
 

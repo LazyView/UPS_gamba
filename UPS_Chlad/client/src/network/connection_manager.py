@@ -3,6 +3,7 @@ Connection manager - orchestrates network client and heartbeat.
 Handles state machine and reconnection logic.
 """
 
+import time
 from typing import Optional, Callable
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from datetime import datetime, timedelta
@@ -409,6 +410,9 @@ class ConnectionManager(QObject):
         Args:
             message_dict: Parsed message dictionary
         """
+        # ===== TIMING: Measure main thread message handling =====
+        handler_start = time.perf_counter()
+
         msg_type = message_dict.get('type')
 
         # Handle protocol messages that affect connection state
@@ -453,6 +457,11 @@ class ConnectionManager(QObject):
 
         # Forward message to UI
         self.message_received.emit(message_dict)
+
+        # ===== TIMING: End of message handling =====
+        handler_end = time.perf_counter()
+        handler_duration = (handler_end - handler_start) * 1000  # Convert to ms
+        self.logger.info(f"[TIMING] ConnectionManager handled {msg_type}: {handler_duration:.3f} ms")
     
     def _on_connected_message(self, message_dict: dict):
         """Handle CONNECTED message from server"""
