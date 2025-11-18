@@ -47,18 +47,18 @@ void CardDeck::initializeStandardDeck() {
     cards.clear();
 
     // TESTING: Generate only 2s and Aces for quick testing
-    for (int suit = 0; suit < 4; ++suit) {
-        cards.emplace_back(static_cast<Suit>(suit), Rank::TWO);   // 2 of each suit
-        cards.emplace_back(static_cast<Suit>(suit), Rank::ACE);   // Ace of each suit
-    }
+    // for (int suit = 0; suit < 4; ++suit) {
+    //     cards.emplace_back(static_cast<Suit>(suit), Rank::TWO);   // 2 of each suit
+    //     cards.emplace_back(static_cast<Suit>(suit), Rank::ACE);   // Ace of each suit
+    // }
     
     // TODO: For full game, uncomment this:
-    // for (int suit = 0; suit < 4; ++suit) {
-    //     for (int rank = 2; rank <= 13; ++rank) {
-    //         cards.emplace_back(static_cast<Suit>(suit), static_cast<Rank>(rank));
-    //     }
-    //     cards.emplace_back(static_cast<Suit>(suit), Rank::ACE);
-    // }
+    for (int suit = 0; suit < 4; ++suit) {
+        for (int rank = 2; rank <= 13; ++rank) {
+            cards.emplace_back(static_cast<Suit>(suit), static_cast<Rank>(rank));
+        }
+        cards.emplace_back(static_cast<Suit>(suit), Rank::ACE);
+    }
 }
 
 void CardDeck::shuffle() {
