@@ -77,32 +77,8 @@ bool ServerConfig::loadFromFile(const std::string& filename) {
                 max_rooms = std::stoi(value);
                 if (max_rooms < 1) {
                     std::cerr << "Warning: Invalid max_rooms " << max_rooms
-                              << " at line " << line_number << ". Using default: 10" << std::endl;
-                    max_rooms = 10;
-                    has_errors = true;
-                }
-            } else if (key == "max_players_per_room") {
-                max_players_per_room = std::stoi(value);
-                if (max_players_per_room < 1) {
-                    std::cerr << "Warning: Invalid max_players_per_room " << max_players_per_room
-                              << " at line " << line_number << ". Using default: 6" << std::endl;
-                    max_players_per_room = 6;
-                    has_errors = true;
-                }
-            } else if (key == "max_clients") {
-                max_clients = std::stoi(value);
-                if (max_clients < 1) {
-                    std::cerr << "Warning: Invalid max_clients " << max_clients
-                              << " at line " << line_number << ". Using default: 60" << std::endl;
-                    max_clients = 60;
-                    has_errors = true;
-                }
-            } else if (key == "invalid_message_limit") {
-                invalid_message_limit = std::stoi(value);
-                if (invalid_message_limit < 1) {
-                    std::cerr << "Warning: Invalid invalid_message_limit " << invalid_message_limit
-                              << " at line " << line_number << ". Using default: 3" << std::endl;
-                    invalid_message_limit = 3;
+                              << " at line " << line_number << ". Using default: 15" << std::endl;
+                    max_rooms = 15;
                     has_errors = true;
                 }
             } else if (key == "log_file") {
@@ -231,9 +207,7 @@ void ServerConfig::printConfig() {
     std::cout << "  IP: " << ip << std::endl;
     std::cout << "  Port: " << port << std::endl;
     std::cout << "  Max Rooms: " << max_rooms << std::endl;
-    std::cout << "  Max Players per Room: " << max_players_per_room << std::endl;
-    std::cout << "  Max Clients: " << max_clients << std::endl;
-    std::cout << "  Invalid Message Limit: " << invalid_message_limit << std::endl;
+    std::cout << "  Max Clients: " << getMaxClients() << " (calculated: max_rooms * 2)" << std::endl;
     std::cout << "  Log File: " << log_file << std::endl;
     std::cout << "  File Logging Enabled: " << (enable_file_logging ? "Yes" : "No") << std::endl;
     std::cout << "  Player Timeout: " << player_timeout_seconds << " seconds" << std::endl;

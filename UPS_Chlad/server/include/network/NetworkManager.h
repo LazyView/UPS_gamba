@@ -28,6 +28,7 @@ class NetworkManager {
 private:
     int server_socket;
     std::atomic<bool> running;
+    std::atomic<int> connected_clients;  // Track current connection count
     std::string server_ip;
     int server_port;
 

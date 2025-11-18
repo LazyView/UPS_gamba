@@ -415,9 +415,13 @@ class ConnectionManager(QObject):
         if msg_type == ServerMessageType.ERROR:
             # Handle ERROR during connection phase
             if self.state == constants.STATE_CONNECTING:
-                self.logger.warning("Connection rejected by server")
+                # Extract error message from server
+                error_msg = message_dict.get('data', {}).get('err', 'Connection rejected by server')
+                self.logger.warning(f"Connection rejected by server: {error_msg}")
                 # Mark as intentional to prevent auto-reconnect
                 self.intentional_disconnect = True
+                # Emit error so UI can display it
+                self.error_occurred.emit(error_msg)
                 # Disconnect and return to DISCONNECTED state
                 if self.network_client:
                     self.network_client.stop()

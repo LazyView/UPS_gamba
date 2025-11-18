@@ -21,7 +21,7 @@
 NetworkManager::NetworkManager(PlayerManager* pm, RoomManager* rm, MessageHandler* mh,
                                MessageValidator* mv, Logger* lg, const ServerConfig* cfg,
                                const std::string& ip, int port)
-    : server_socket(-1), running(false), server_ip(ip), server_port(port),
+    : server_socket(-1), running(false), connected_clients(0), server_ip(ip), server_port(port),
       playerManager(pm), roomManager(rm), messageHandler(mh), validator(mv), logger(lg), config(cfg),
       heartbeat_running(false) {
 
@@ -76,6 +76,35 @@ void NetworkManager::run() {
     socklen_t client_addr_len = sizeof(client_addr);
 
     while (running.load()) {
+        // Check if server is at capacity
+        int current_connections = connected_clients.load();
+        int max_connections = config->getMaxClients();
+
+        if (current_connections >= max_connections) {
+            // At capacity - accept and immediately reject
+            int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
+            if (client_socket >= 0) {
+                char client_ip[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
+                logger->warning("Server at capacity (" + std::to_string(current_connections) + "/" +
+                              std::to_string(max_connections) + "), rejecting connection from " +
+                              std::string(client_ip));
+
+                // Send error message and close
+                std::string error_msg = "103|||err=Server is full (" + std::to_string(max_connections) + " max clients)|\n";
+                send(client_socket, error_msg.c_str(), error_msg.length(), MSG_NOSIGNAL);
+
+                // Give client time to receive the message before closing
+                // This prevents the socket from being closed before message delivery
+                usleep(50000);  // 50ms delay
+
+                // Shutdown write side to flush the message before closing
+                shutdown(client_socket, SHUT_WR);
+                close(client_socket);
+            }
+            continue;
+        }
+
         // Accept new client connection
         int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
 
@@ -86,10 +115,15 @@ void NetworkManager::run() {
             continue;
         }
 
+        // Increment connection counter
+        connected_clients++;
+
         // Log client connection
         char client_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
-        logger->info("New client connected from " + std::string(client_ip) + ":" + std::to_string(ntohs(client_addr.sin_port)) + " (socket: " + std::to_string(client_socket) + ")");
+        logger->info("New client connected from " + std::string(client_ip) + ":" + std::to_string(ntohs(client_addr.sin_port)) +
+                    " (socket: " + std::to_string(client_socket) + ", total: " + std::to_string(connected_clients.load()) +
+                    "/" + std::to_string(max_connections) + ")");
 
         // Create and detach thread for handling client
         try {
@@ -409,6 +443,11 @@ void NetworkManager::handleClient(int client_socket) {
     if (close(client_socket) < 0) {
         logger->warning("Error closing client socket " + std::to_string(client_socket) + ": " + std::string(strerror(errno)));
     }
+
+    // Decrement connection counter
+    connected_clients--;
+    logger->debug("Client disconnected. Active connections: " + std::to_string(connected_clients.load()) +
+                 "/" + std::to_string(config->getMaxClients()));
 
     logger->debug("Client handler finished for socket " + std::to_string(client_socket));
 }

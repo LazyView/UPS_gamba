@@ -255,12 +255,14 @@ class ConnectionDialog(QDialog):
         Args:
             message: Error message to display
         """
+        # Re-enable UI first (this clears status label)
+        self.set_connecting(False)
+        # Then set error message (so it doesn't get cleared)
         self.status_label.setText(f"Error: {message}")
         self.status_label.setStyleSheet("color: red; font-weight: bold;")
-        self.set_connecting(False)
 
         # Also show as non-blocking message box for critical errors
-        if "refused" in message.lower() or "timeout" in message.lower():
+        if "refused" in message.lower() or "timeout" in message.lower() or "full" in message.lower():
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Connection Error")
             msg_box.setText(message)
