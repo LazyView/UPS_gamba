@@ -10,8 +10,8 @@
 
 struct ServerConfig {
     std::string ip = "172.26.161.211";
-    int port = 8080;
-    int max_rooms = 10;
+    int port = 10001;
+    int max_rooms = 15;
     int max_players_per_room = 6;
     int max_clients = 60;
     int invalid_message_limit = 3;

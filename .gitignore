@@ -8,3 +8,4 @@ UPS_Chlad/.vscode/
 UPS_Chlad/client/tests
 __pycache__
 UPS_Chlad/server/gamba_server
+UPS_Chlad/client/venv
